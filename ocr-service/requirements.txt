@@ -1,0 +1,18 @@
+# Phase 1 - service skeleton
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+pillow==10.4.0
+pydantic==2.9.2
+
+# Testing
+pytest==8.3.3
+httpx==0.27.2
+
+# Phase 2 - OCR engine (confirmed working on Python 3.13, Windows + Linux)
+paddlepaddle==3.2.2
+paddleocr==3.7.0
+
+# --- Added in later phases (uncomment as you reach them) ---
+# opencv-python-headless   # Phase 3 - preprocessing
+# spacy                    # Phase 7 - NER
