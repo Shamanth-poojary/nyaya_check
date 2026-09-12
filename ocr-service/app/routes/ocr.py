@@ -1,22 +1,14 @@
-import io
-import os
-import tempfile
+from typing import List
 
-import cv2
-import numpy as np
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from PIL import Image
+from fastapi import APIRouter, File, UploadFile
 
-from app.classification.fields import classify_fields
-from app.ocr.normalize import merge_split_lines
-from app.ocr.paddle import run_ocr
-from app.preprocessing.pipeline import PreprocessConfig, preprocess
-from app.schemas.response import BoundingBox, ExtractionResponse, RawOCRLine, empty_response
+from app.classification.merge import merge_extraction_results
+from app.pipeline import process_single_image
+from app.schemas.response import ExtractionResponse
 
 router = APIRouter()
 
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
-MAX_FILE_SIZE_MB = 15
+MAX_IMAGES_PER_REQUEST = 10
 
 
 @router.post("/extract", response_model=ExtractionResponse)
@@ -25,99 +17,56 @@ async def extract(
     preprocess_enabled: bool = False,
 ) -> ExtractionResponse:
     """
-    Validate the upload, optionally run it through the OpenCV preprocessing
-    pipeline (Phase 3), then through PaddleOCR (Phase 2), populating rawOCR.
+    Single-image extraction. See /extract/multi for multi-photo extraction
+    (the primary intended use case -- see that endpoint's docstring).
 
     Defaults to `preprocess_enabled=False`: A/B testing on real photos
     showed CLAHE contrast enhancement (Phase 3) can cause PaddleOCR to
-    split a single physical line (e.g. "MRP :RS 40") into two separate
-    detections, breaking classification. Line-merging normalization
-    (Phase 4) now repairs this either way, but until preprocessing shows a
-    clear, proven benefit on a broader test set, raw OCR is the safer
-    default. Set `preprocess_enabled=true` to opt into CLAHE + denoise for
-    comparison.
-
-    Later phases still to come:
-      Phase 4 - OCR normalization
-      Phase 5/6/7 - Regex + keyword + NER classification, commodity category
-      Phase 8 - Visual analysis
-      Phase 9 - Evidence assembly
+    split a single physical line into two separate detections. Line-merging
+    normalization (Phase 4) now repairs this either way, but raw OCR
+    remains the safer default until preprocessing shows a clear, proven
+    benefit on a broader test set.
     """
-    if image.content_type not in ALLOWED_CONTENT_TYPES:
+    return await process_single_image(image, preprocess_enabled)
+
+
+@router.post("/extract/multi", response_model=ExtractionResponse)
+async def extract_multi(
+    images: List[UploadFile] = File(...),
+    preprocess_enabled: bool = False,
+) -> ExtractionResponse:
+    """
+    Multi-image extraction -- the primary intended use case for this
+    service. A single product photo rarely shows every mandatory
+    declaration (front panel has MRP/net qty, back panel has manufacturer/
+    consumer care, a side panel might show dimensions or "when packed"
+    wording); this endpoint runs the SAME single-image pipeline on each
+    uploaded photo independently, then merges the results into one
+    consolidated ExtractionResponse.
+
+    Merge behavior:
+      - Each structured field (mrp, manufacturer, dates, ...) takes the
+        highest-confidence match found across all photos.
+      - rawOCR, dimensions, and qualifier/misleading-term lists are
+        concatenated across all photos (nothing is discarded).
+      - Every piece of evidence is tagged with `sourceImage` (the filename
+        it came from), and `sourceDocuments` lists every photo submitted.
+      - If two photos disagree on a fact that should be consistent (e.g.
+        different MRP values), it's flagged in `uncertainFields` rather
+        than silently resolved -- that kind of conflict is worth a human
+        look, not a silent pick.
+
+    Response shape is IDENTICAL to /extract's single-image response --
+    downstream consumers (rules engine) don't need to know or care how
+    many photos went in.
+    """
+    if len(images) > MAX_IMAGES_PER_REQUEST:
+        from fastapi import HTTPException
+
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported content type: {image.content_type}. "
-            f"Allowed: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}",
+            detail=f"Too many images ({len(images)}); max {MAX_IMAGES_PER_REQUEST} per request.",
         )
 
-    contents = await image.read()
-    size_mb = len(contents) / (1024 * 1024)
-    if size_mb > MAX_FILE_SIZE_MB:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Image too large ({size_mb:.1f} MB > {MAX_FILE_SIZE_MB} MB limit)",
-        )
-
-    try:
-        pil_image = Image.open(io.BytesIO(contents))
-        pil_image.verify()
-        pil_image = Image.open(io.BytesIO(contents)).convert("RGB")  # reopen: verify() closes it
-        width, height = pil_image.size
-    except Exception:
-        raise HTTPException(status_code=400, detail="File is not a valid image")
-
-    response = empty_response(image_id=image.filename or "unknown", width=width, height=height)
-
-    # PIL gives RGB; OpenCV expects BGR.
-    bgr_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
-
-    if preprocess_enabled:
-        result = preprocess(bgr_image, PreprocessConfig())
-        ocr_image_bgr = result.image
-        scale = result.scale
-    else:
-        # Still resize even with preprocessing off, purely for OCR speed --
-        # this is NOT part of the accuracy comparison, just keeps the
-        # "off" path from being unusably slow on large phone photos.
-        from app.preprocessing.resize import resize_image
-
-        ocr_image_bgr, scale = resize_image(bgr_image, max_dimension=1600)
-
-    suffix = os.path.splitext(image.filename or "")[1] or ".jpg"
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp_path = tmp.name
-        cv2.imwrite(tmp_path, ocr_image_bgr)
-
-        lines = run_ocr(tmp_path)
-        lines = merge_split_lines(lines)  # Phase 4: repair same-row split detections
-        inverse_scale = 1.0 / scale  # 1.0 if we didn't resize
-        response.rawOCR = [
-            RawOCRLine(
-                text=line.text,
-                bbox=BoundingBox(
-                    xmin=round(line.bbox[0] * inverse_scale),
-                    ymin=round(line.bbox[1] * inverse_scale),
-                    xmax=round(line.bbox[2] * inverse_scale),
-                    ymax=round(line.bbox[3] * inverse_scale),
-                ),
-                confidence=line.confidence,
-            )
-            for line in lines
-        ]
-
-        # Phase 5: classify raw OCR lines into named fields. rawOCR above
-        # stays untouched as the raw evidence layer -- this only adds
-        # structure on top of it.
-        classify_fields(response, response.rawOCR)
-    except Exception as exc:
-        # Don't fail the whole request if the OCR engine can't load (e.g. no
-        # internet for first-time model download) -- degrade gracefully and
-        # flag it so the caller knows extraction didn't run.
-        response.uncertainFields.append(f"OCR engine unavailable: {exc}")
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-    return response
+    results = [await process_single_image(img, preprocess_enabled) for img in images]
+    return merge_extraction_results(results)

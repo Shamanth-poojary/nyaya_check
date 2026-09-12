@@ -140,3 +140,75 @@ def test_split_lines_are_merged_before_classification():
     assert r.manufacturingDate.month == 3
     assert r.expiryDate.found is True
     assert r.expiryDate.month == 9
+
+
+def test_multi_image_merge_combines_complementary_photos():
+    """The actual point of multi-image extraction: hana1.jpeg (batch/dates/
+    MRP, photographed on the bottle body) and hana3.jpeg (manufacturer/
+    consumer care, photographed on the back label) are TWO REAL PHOTOS OF
+    THE SAME PRODUCT. Neither photo alone has everything Rule 6 requires;
+    merged, the result should."""
+    from app.classification.merge import merge_extraction_results
+    from app.pipeline import _tag_source_image
+    from app.schemas.response import empty_response
+
+    hana1_response = empty_response("hana1.jpeg", 720, 1280)
+    for l in HANA1_LINES:
+        l.sourceImage = "hana1.jpeg"
+    hana1_response.rawOCR = HANA1_LINES
+    classify_fields(hana1_response, HANA1_LINES)
+    _tag_source_image(hana1_response, "hana1.jpeg")
+
+    hana3_response = empty_response("hana3.jpeg", 720, 1280)
+    for l in HANA3_LINES:
+        l.sourceImage = "hana3.jpeg"
+    hana3_response.rawOCR = HANA3_LINES
+    classify_fields(hana3_response, HANA3_LINES)
+    _tag_source_image(hana3_response, "hana3.jpeg")
+
+    merged = merge_extraction_results([hana1_response, hana3_response])
+
+    # Fields only visible in hana1 survive the merge
+    assert merged.mrp.found is True
+    assert merged.mrp.value == 40.0
+    assert merged.batchNumber.found is True
+
+    # Fields only visible in hana3 ALSO survive the merge (this is the
+    # actual value proposition -- neither single photo has both)
+    assert merged.manufacturer.found is True
+    assert merged.manufacturer.name == "Swadeshi Food & Beverages"
+    assert merged.consumerCare.found is True
+    assert merged.consumerCare.email == "swadeshifb@gmail.com"
+
+    # Traceability: evidence is tagged with which photo it came from
+    assert merged.mrp.sourceImage == "hana1.jpeg"
+    assert merged.manufacturer.sourceImage == "hana3.jpeg"
+    assert len(merged.sourceDocuments) == 2
+
+    # Raw evidence from BOTH photos is preserved, not overwritten
+    assert len(merged.rawOCR) == len(HANA1_LINES) + len(HANA3_LINES)
+
+    # Still correctly not found anywhere (neither photo shows it) --
+    # merging shouldn't manufacture a field that's genuinely absent
+    assert merged.netQuantity.found is False
+
+
+def test_multi_image_merge_flags_genuine_conflicts():
+    """If two photos disagree on a fact that should be consistent (e.g.
+    different MRP values), that must be flagged, not silently resolved --
+    could mean two different products got mixed into one upload."""
+    from app.classification.merge import merge_extraction_results
+    from app.schemas.response import empty_response
+
+    photo_a = empty_response("a.jpg", 720, 1280)
+    photo_a.rawOCR = [_line("MRP :RS 40", 100, 100, 200, 130, 0.95)]
+    classify_fields(photo_a, photo_a.rawOCR)
+
+    photo_b = empty_response("b.jpg", 720, 1280)
+    photo_b.rawOCR = [_line("MRP :RS 45", 100, 100, 200, 130, 0.90)]
+    classify_fields(photo_b, photo_b.rawOCR)
+
+    merged = merge_extraction_results([photo_a, photo_b])
+
+    assert merged.mrp.value == 40.0  # higher confidence wins
+    assert any("Conflicting" in note and "mrp" in note for note in merged.uncertainFields)

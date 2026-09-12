@@ -24,6 +24,7 @@ class RawOCRLine(BaseModel):
     text: str
     bbox: BoundingBox
     confidence: float
+    sourceImage: Optional[str] = None
 
 
 class Commodity(BaseModel):
@@ -31,6 +32,7 @@ class Commodity(BaseModel):
     category: Optional[str] = None
     found: bool = False
     confidence: float = 0.0
+    sourceImage: Optional[str] = None  # which uploaded photo this evidence came from
 
 
 class PartyInfo(BaseModel):
@@ -40,6 +42,7 @@ class PartyInfo(BaseModel):
     role: Optional[str] = None
     found: bool = False
     confidence: float = 0.0
+    sourceImage: Optional[str] = None  # which uploaded photo this evidence came from
 
 
 class MRP(BaseModel):
@@ -50,6 +53,7 @@ class MRP(BaseModel):
     bbox: Optional[BoundingBox] = None
     found: bool = False
     confidence: float = 0.0
+    sourceImage: Optional[str] = None  # which uploaded photo this evidence came from
 
 
 class NetQuantity(BaseModel):
@@ -62,6 +66,7 @@ class NetQuantity(BaseModel):
     bbox: Optional[BoundingBox] = None
     found: bool = False
     confidence: float = 0.0
+    sourceImage: Optional[str] = None  # which uploaded photo this evidence came from
 
 
 class DateField(BaseModel):
@@ -74,6 +79,7 @@ class DateField(BaseModel):
     bbox: Optional[BoundingBox] = None
     found: bool = False
     confidence: float = 0.0
+    sourceImage: Optional[str] = None  # which uploaded photo this evidence came from
 
 
 class BatchNumber(BaseModel):
@@ -84,6 +90,7 @@ class BatchNumber(BaseModel):
     bbox: Optional[BoundingBox] = None
     found: bool = False
     confidence: float = 0.0
+    sourceImage: Optional[str] = None  # which uploaded photo this evidence came from
 
 
 class Dimension(BaseModel):
@@ -91,6 +98,7 @@ class Dimension(BaseModel):
     value: Optional[float] = None
     unit: Optional[str] = None
     bbox: Optional[BoundingBox] = None
+    sourceImage: Optional[str] = None
 
 
 class ConsumerCare(BaseModel):
@@ -101,17 +109,20 @@ class ConsumerCare(BaseModel):
     bbox: Optional[BoundingBox] = None
     found: bool = False
     confidence: float = 0.0
+    sourceImage: Optional[str] = None  # which uploaded photo this evidence came from
 
 
 class QuantityQualifier(BaseModel):
     text: str
     qualifierType: str  # WHEN_PACKED | MINIMUM | NOT_LESS_THAN | AVERAGE | ...
     bbox: Optional[BoundingBox] = None
+    sourceImage: Optional[str] = None
 
 
 class MisleadingTerm(BaseModel):
     text: str  # e.g. "approximately", "about", "dozen"
     bbox: Optional[BoundingBox] = None
+    sourceImage: Optional[str] = None
 
 
 class Measurement(BaseModel):
@@ -139,6 +150,7 @@ class DocumentMeta(BaseModel):
 
 class ExtractionResponse(BaseModel):
     document: DocumentMeta
+    sourceDocuments: List[DocumentMeta] = Field(default_factory=list)  # populated for multi-image extraction
     commodity: Commodity = Field(default_factory=Commodity)
     manufacturer: PartyInfo = Field(default_factory=PartyInfo)
     packer: PartyInfo = Field(default_factory=PartyInfo)
