@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal Metrology OCR — Extraction Service</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#0b0f1a;--surface:#141824;--surface2:#1c2133;--border:#252d42;
+      --accent:#3b82f6;--accent-glow:#3b82f640;--accent2:#6366f1;
+      --success:#22c55e;--danger:#ef4444;--text:#f0f4ff;--muted:#8892a8;
+      --radius:14px;--radius-sm:8px;--shadow:0 8px 32px #0007;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{height:100%}
+    body{min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.6;display:flex;flex-direction:column}
+    header{padding:1.1rem 2rem;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem}
+    .logo{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .header-text h1{font-size:1rem;font-weight:600}
+    .header-text p{font-size:.75rem;color:var(--muted)}
+    main{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;padding:1.5rem 2rem;max-width:1100px;margin:0 auto;width:100%}
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden}
+    .panel-header{padding:.85rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.55rem}
+    .panel-header .icon{font-size:1.1rem}
+    .panel-header h2{font-size:.9rem;font-weight:600}
+    .panel-body{flex:1;padding:1.2rem;display:flex;flex-direction:column;gap:1rem}
+    .drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:2.5rem 1rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+    .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:var(--accent-glow)}
+    .drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .drop-icon{font-size:2.5rem;margin-bottom:.5rem}
+    .drop-title{font-weight:600;font-size:.95rem}
+    .drop-sub{font-size:.78rem;color:var(--muted);margin-top:.25rem}
+    .file-list{display:flex;flex-wrap:wrap;gap:.4rem}
+    .file-chip{background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:.25rem .75rem;font-size:.75rem;display:flex;align-items:center;gap:.4rem;max-width:200px}
+    .file-chip .chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .chip-rm{cursor:pointer;color:var(--muted);flex-shrink:0;transition:color .15s}
+    .chip-rm:hover{color:var(--danger)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.6rem 1.2rem;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:.85rem;font-weight:500;cursor:pointer;transition:opacity .2s,transform .1s}
+    .btn:active{transform:scale(.97)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-success{background:var(--success);color:#fff}
+    .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+    .btn-full{width:100%}
+    #cameraPanel .panel-body{padding:0;position:relative}
+    #camIdle{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem;text-align:center}
+    .cam-idle-icon{width:72px;height:72px;background:var(--surface2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;border:1px solid var(--border)}
+    #camIdle h3{font-size:.95rem;font-weight:600}
+    #camIdle p{font-size:.8rem;color:var(--muted)}
+    #camActive{display:none;flex-direction:column;height:100%;position:relative}
+    .viewfinder-wrap{position:relative;flex:1;background:#000;overflow:hidden;min-height:280px}
+    #camVideo{width:100%;height:100%;object-fit:cover;display:block}
+    .vf-overlay{position:absolute;inset:0;pointer-events:none}
+    .vf-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;aspect-ratio:1/1;max-width:300px;pointer-events:none}
+    .vf-corner{position:absolute;width:28px;height:28px;border-color:#fff;border-style:solid}
+    .vf-corner.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:8px 0 0 0}
+    .vf-corner.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 8px 0 0}
+    .vf-corner.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 8px}
+    .vf-corner.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 8px 0}
+    .vf-label{position:absolute;bottom:10px;width:100%;text-align:center;font-size:.82rem;font-weight:500;color:#fff;text-shadow:0 1px 4px #0008;pointer-events:none}
+    .vf-topbar{position:absolute;top:0;left:0;right:0;padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,#000a,transparent);z-index:10}
+    .vf-icon-btn{width:36px;height:36px;background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s}
+    .vf-icon-btn:hover{background:#ffffff22}
+    .vf-bottombar{padding:.75rem 1rem;background:#0c101a;display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+    .shutter-btn{width:58px;height:58px;flex-shrink:0;border-radius:50%;background:#fff;border:4px solid #ffffff55;cursor:pointer;transition:transform .12s,box-shadow .12s;box-shadow:0 0 0 3px #fff3;display:flex;align-items:center;justify-content:center}
+    .shutter-btn:active{transform:scale(.88);box-shadow:0 0 0 1px #fff3}
+    .shutter-inner{width:44px;height:44px;border-radius:50%;background:#fff}
+    .captured-strip{display:flex;gap:.4rem;overflow-x:auto;flex:1;align-items:center;scrollbar-width:none}
+    .captured-strip::-webkit-scrollbar{display:none}
+    .cap-thumb{position:relative;flex-shrink:0;width:50px;height:50px;border-radius:8px;overflow:hidden;border:2px solid var(--accent);cursor:pointer}
+    .cap-thumb img{width:100%;height:100%;object-fit:cover}
+    .cap-thumb .cap-rm{position:absolute;top:2px;right:2px;background:#000b;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff;cursor:pointer}
+    .cap-count{font-size:.73rem;color:var(--muted);white-space:nowrap}
+    .scan-from-photo{background:#000000bb;border:1px solid #ffffff22;backdrop-filter:blur(6px);color:#fff;font-size:.78rem;padding:.4rem .9rem;border-radius:99px;cursor:pointer;display:flex;align-items:center;gap:.4rem;transition:background .15s;white-space:nowrap}
+    .scan-from-photo:hover{background:#000000dd}
+    #camGalleryInput{display:none}
+    .results-section{max-width:1100px;margin:0 auto 1.5rem;width:100%;padding:0 2rem}
+    .results-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    .results-header{padding:.85rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.55rem}
+    .results-header h2{font-size:.9rem;font-weight:600;flex:1}
+    #resultBody{padding:1.2rem;font-family:Menlo,Consolas,monospace;font-size:.78rem;line-height:1.7;color:#a8c8ff;white-space:pre-wrap;word-break:break-all;max-height:480px;overflow-y:auto;background:#090d16}
+    #resultBody.placeholder{color:var(--muted);font-family:inherit;font-size:.85rem}
+    .badge{display:inline-flex;align-items:center;padding:.2rem .6rem;border-radius:99px;font-size:.72rem;font-weight:500}
+    .badge-blue{background:#3b82f622;color:#60a5fa;border:1px solid #3b82f644}
+    .badge-green{background:#22c55e22;color:#4ade80;border:1px solid #22c55e44}
+    .badge-red{background:#ef444422;color:#f87171;border:1px solid #ef444444}
+    .badge-yellow{background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes flash{0%,100%{opacity:0}10%{opacity:.75}}
+    .flash-overlay{position:absolute;inset:0;background:#fff;pointer-events:none;opacity:0}
+    .flash-overlay.flashing{animation:flash .35s ease}
+    @media(max-width:720px){main{grid-template-columns:1fr;padding:1rem}.results-section{padding:0 1rem}header{padding:1rem}}
+    /* ── Preprocessing toggle ── */
+    .preprocess-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.55rem .85rem;gap:.75rem}
+    .preprocess-label{display:flex;flex-direction:column;gap:.1rem}
+    .preprocess-label strong{font-size:.82rem;font-weight:500}
+    .preprocess-label span{font-size:.72rem;color:var(--muted)}
+    .toggle-wrap{position:relative;flex-shrink:0}
+    .toggle-wrap input[type=checkbox]{opacity:0;width:0;height:0;position:absolute}
+    .toggle-track{display:block;width:40px;height:22px;background:var(--border);border-radius:99px;cursor:pointer;transition:background .2s;position:relative}
+    .toggle-wrap input:checked + .toggle-track{background:var(--accent)}
+    .toggle-thumb{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none}
+    .toggle-wrap input:checked ~ .toggle-thumb{transform:translateX(18px)}
+    /* ── Header extras ── */
+    .header-right{margin-left:auto;display:flex;align-items:center;gap:1rem}
+    .health-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}
+    .health-dot.ok{background:var(--success);box-shadow:0 0 6px var(--success)}
+    .health-dot.err{background:var(--danger);box-shadow:0 0 6px var(--danger)}
+    .health-label{font-size:.74rem;color:var(--muted)}
+    .docs-link{font-size:.76rem;color:var(--accent);text-decoration:none;padding:.3rem .65rem;border:1px solid var(--border);border-radius:var(--radius-sm);transition:background .15s}
+    .docs-link:hover{background:var(--surface2)}
+    /* ── Mode selector ── */
+    .mode-row{display:flex;gap:.5rem}
+    .mode-btn{flex:1;padding:.45rem .6rem;font-size:.78rem;font-weight:500;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
+    .mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">🔍</div>
+  <div class="header-text">
+    <h1>Legal Metrology OCR</h1>
+    <p>Upload or capture product images to extract compliance data</p>
+  </div>
+  <div class="header-right">
+    <div class="health-dot" id="healthDot" title="Server health"></div>
+    <span class="health-label" id="healthLabel">Checking…</span>
+    <a class="docs-link" href="/docs" target="_blank" rel="noopener">API Docs ↗</a>
+  </div>
+</header>
+
+<main>
+  <!-- ── Upload Panel ── -->
+  <div class="panel" id="uploadPanel">
+    <div class="panel-header">
+      <span class="icon">📁</span>
+      <h2>Upload Images</h2>
+    </div>
+    <div class="panel-body">
+      <!-- Single / Multi mode selector -->
+      <div class="mode-row" id="modeRow">
+        <button class="mode-btn" id="modeSingle">Single image&nbsp;(/extract)</button>
+        <button class="mode-btn active" id="modeMulti">Multiple images&nbsp;(/extract/multi)</button>
+      </div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple />
+        <div class="drop-icon">🖼️</div>
+        <div class="drop-title">Drop images here</div>
+        <div class="drop-sub" id="dropSub">or click to browse · JPEG / PNG / WebP · Max 15 MB each · Up to 10 images</div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+      <!-- Preprocessing toggle -->
+      <div class="preprocess-row">
+        <div class="preprocess-label">
+          <strong>⚙️ Preprocessing</strong>
+          <span>CLAHE contrast + denoise (off by default — can split lines)</span>
+        </div>
+        <label class="toggle-wrap" title="Toggle preprocessing">
+          <input type="checkbox" id="uploadPreprocess" />
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div style="display:flex;gap:.6rem;margin-top:auto">
+        <button class="btn btn-ghost" id="clearUploadBtn" style="flex:0 0 auto" disabled>Clear</button>
+        <button class="btn btn-primary btn-full" id="extractUploadBtn" disabled>Extract Text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Camera Panel ── -->
+  <div class="panel" id="cameraPanel">
+    <div class="panel-header">
+      <span class="icon">📷</span>
+      <h2>Capture Images</h2>
+    </div>
+    <div class="panel-body" style="min-height:420px">
+
+      <!-- Idle -->
+      <div id="camIdle">
+        <div class="cam-idle-icon">📷</div>
+        <h3>Live Camera Capture</h3>
+        <p>Capture multiple sides of a product package.<br>Results are merged exactly like multi-image upload.</p>
+        <button class="btn btn-primary" id="startCamBtn">▶ Open Camera</button>
+        <p style="font-size:.74rem;color:var(--muted)">Camera access required · works on desktop &amp; mobile</p>
+      </div>
+
+      <!-- Active viewfinder -->
+      <div id="camActive">
+        <!-- Video stream -->
+        <div class="viewfinder-wrap" id="viewfinderWrap">
+          <video id="camVideo" autoplay playsinline muted></video>
+          <div class="vf-overlay"></div>
+          <div class="vf-guide">
+            <div class="vf-corner tl"></div>
+            <div class="vf-corner tr"></div>
+            <div class="vf-corner bl"></div>
+            <div class="vf-corner br"></div>
+          </div>
+          <div class="vf-label" id="vfLabel">Align product label within frame</div>
+          <div class="flash-overlay" id="flashOverlay"></div>
+          <!-- Top bar -->
+          <div class="vf-topbar">
+            <button class="vf-icon-btn" id="closeCamBtn" title="Close camera">✕</button>
+            <div style="display:flex;gap:.3rem">
+              <button class="vf-icon-btn" id="torchBtn" title="Toggle flash">⚡</button>
+              <button class="vf-icon-btn" id="flipCamBtn" title="Flip camera">🔄</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom bar -->
+        <div class="vf-bottombar">
+          <div class="captured-strip" id="capturedStrip">
+            <span class="cap-count" id="capCount">No captures yet</span>
+          </div>
+          <button class="shutter-btn" id="shutterBtn" title="Capture photo">
+            <div class="shutter-inner"></div>
+          </button>
+          <button class="scan-from-photo" id="scanFromPhotoBtn">🖼 Scan from photo</button>
+          <input type="file" id="camGalleryInput" accept="image/jpeg,image/png,image/webp" multiple />
+        </div>
+
+        <!-- Extract bar -->
+        <div style="padding:.8rem 1.2rem;background:#090d16;display:none;flex-direction:column;gap:.65rem" id="camExtractBar">
+          <!-- Preprocessing toggle inside camera panel -->
+          <div class="preprocess-row" style="background:#1a1f2e">
+            <div class="preprocess-label">
+              <strong>⚙️ Preprocessing</strong>
+              <span>CLAHE contrast + denoise</span>
+            </div>
+            <label class="toggle-wrap" title="Toggle preprocessing">
+              <input type="checkbox" id="camPreprocess" />
+              <span class="toggle-track"></span>
+              <span class="toggle-thumb"></span>
+            </label>
+          </div>
+          <button class="btn btn-success btn-full" id="extractCamBtn">
+            🚀 Extract from <span id="camExtractCount">0</span> capture(s)
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- Results -->
+<div class="results-section" id="resultsSection" style="display:none">
+  <div class="results-panel">
+    <div class="results-header">
+      <span class="icon">📄</span>
+      <h2>Extraction Results</h2>
+      <span id="resultBadge" class="badge badge-blue" style="margin-left:.5rem"></span>
+      <button class="btn btn-ghost" id="copyResultBtn" style="margin-left:auto;padding:.35rem .8rem;font-size:.75rem">Copy JSON</button>
+    </div>
+    <div id="resultBody" class="placeholder">Results will appear here after extraction.</div>
+  </div>
+</div>
+
+<canvas id="camCanvas" style="display:none"></canvas>
+
+<script>
+/* ── Upload panel ── */
+const fileInput       = document.getElementById('fileInput');
+const dropZone        = document.getElementById('dropZone');
+const fileListEl      = document.getElementById('fileList');
+const extractUploadBtn= document.getElementById('extractUploadBtn');
+const clearUploadBtn  = document.getElementById('clearUploadBtn');
+let uploadFiles = [];
+
+function refreshUploadUI() {
+  fileListEl.innerHTML = '';
+  uploadFiles.forEach((f, i) => {
+    const c = document.createElement('div');
+    c.className = 'file-chip';
+    c.innerHTML = `<span class="chip-name" title="${f.name}">${f.name}</span><span class="chip-rm" data-i="${i}">✕</span>`;
+    fileListEl.appendChild(c);
+  });
+  const has = uploadFiles.length > 0;
+  extractUploadBtn.disabled = !has;
+  clearUploadBtn.disabled   = !has;
+  extractUploadBtn.textContent = has ? `Extract from ${uploadFiles.length} image(s)` : 'Extract Text';
+}
+
+function addUploadFiles(list) {
+  const rem = 10 - uploadFiles.length;
+  [...list].slice(0, rem).forEach(f => uploadFiles.push(f));
+  refreshUploadUI();
+}
+
+fileInput.addEventListener('change', () => { addUploadFiles(fileInput.files); fileInput.value = ''; });
+fileListEl.addEventListener('click', e => {
+  const rm = e.target.closest('.chip-rm'); if (!rm) return;
+  uploadFiles.splice(Number(rm.dataset.i), 1); refreshUploadUI();
+});
+clearUploadBtn.addEventListener('click', () => { uploadFiles = []; refreshUploadUI(); });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over'); addUploadFiles(e.dataTransfer.files);
+});
+extractUploadBtn.addEventListener('click', () => {
+  if (!uploadFiles.length) return;
+  const form = new FormData();
+  const isSingle = document.getElementById('modeSingle').classList.contains('active');
+  const preprocess = document.getElementById('uploadPreprocess').checked;
+  if (isSingle) {
+    // /extract only takes one file; use the first selected
+    form.append('image', uploadFiles[0], uploadFiles[0].name);
+    submitExtraction(form, `Extracted from ${uploadFiles[0].name}`, preprocess, true);
+  } else {
+    uploadFiles.forEach(f => form.append('images', f, f.name));
+    submitExtraction(form, `Extracted from ${uploadFiles.length} upload(s)`, preprocess, false);
+  }
+});
+
+/* ── Mode selector ── */
+const modeSingleBtn = document.getElementById('modeSingle');
+const modeMultiBtn  = document.getElementById('modeMulti');
+const fileInputEl   = document.getElementById('fileInput');
+const dropSubEl     = document.getElementById('dropSub');
+
+modeSingleBtn.addEventListener('click', () => {
+  modeSingleBtn.classList.add('active'); modeMultiBtn.classList.remove('active');
+  fileInputEl.removeAttribute('multiple');
+  dropSubEl.textContent = 'or click to browse · JPEG / PNG / WebP · Max 15 MB · Single image only';
+  // trim to 1 file if more are already selected
+  if (uploadFiles.length > 1) { uploadFiles = [uploadFiles[0]]; refreshUploadUI(); }
+});
+modeMultiBtn.addEventListener('click', () => {
+  modeMultiBtn.classList.add('active'); modeSingleBtn.classList.remove('active');
+  fileInputEl.setAttribute('multiple', '');
+  dropSubEl.textContent = 'or click to browse · JPEG / PNG / WebP · Max 15 MB each · Up to 10 images';
+});
+
+/* ── Camera panel ── */
+const startCamBtn     = document.getElementById('startCamBtn');
+const closeCamBtn     = document.getElementById('closeCamBtn');
+const torchBtn        = document.getElementById('torchBtn');
+const flipCamBtn      = document.getElementById('flipCamBtn');
+const shutterBtn      = document.getElementById('shutterBtn');
+const scanFromPhotoBtn= document.getElementById('scanFromPhotoBtn');
+const camGalleryInput = document.getElementById('camGalleryInput');
+const extractCamBtn   = document.getElementById('extractCamBtn');
+const camExtractBar   = document.getElementById('camExtractBar');
+const camExtractCount = document.getElementById('camExtractCount');
+const capturedStrip   = document.getElementById('capturedStrip');
+const camVideo        = document.getElementById('camVideo');
+const camCanvas       = document.getElementById('camCanvas');
+const camIdle         = document.getElementById('camIdle');
+const camActive       = document.getElementById('camActive');
+const flashOverlay    = document.getElementById('flashOverlay');
+
+let stream = null, torchTrack = null, facingMode = 'environment', torchOn = false;
+let capturedBlobs = [];
+
+startCamBtn.addEventListener('click', openCamera);
+async function openCamera() {
+  try {
+    if (stream) stopCamera();
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false
+    });
+    camVideo.srcObject = stream;
+    torchTrack = stream.getVideoTracks()[0];
+    camIdle.style.display = 'none';
+    Object.assign(camActive.style, { display: 'flex', flexDirection: 'column', height: '100%' });
+  } catch(err) {
+    alert('Camera error: ' + err.message + '\n\nAllow camera permissions and use HTTPS or localhost.');
+  }
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  camVideo.srcObject = null;
+  camIdle.style.display = '';
+  camActive.style.display = 'none';
+}
+
+closeCamBtn.addEventListener('click', stopCamera);
+flipCamBtn.addEventListener('click', async () => { facingMode = facingMode === 'environment' ? 'user' : 'environment'; await openCamera(); });
+torchBtn.addEventListener('click', async () => {
+  if (!torchTrack) return;
+  const caps = torchTrack.getCapabilities?.() || {};
+  if (!caps.torch) return;
+  torchOn = !torchOn;
+  await torchTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+  torchBtn.style.color = torchOn ? '#fbbf24' : '';
+});
+
+shutterBtn.addEventListener('click', () => {
+  if (!stream || capturedBlobs.length >= 10) return;
+  camCanvas.width = camVideo.videoWidth; camCanvas.height = camVideo.videoHeight;
+  camCanvas.getContext('2d').drawImage(camVideo, 0, 0);
+  flashOverlay.classList.remove('flashing'); void flashOverlay.offsetWidth; flashOverlay.classList.add('flashing');
+  camCanvas.toBlob(blob => {
+    if (!blob) return;
+    capturedBlobs.push({ blob, url: URL.createObjectURL(blob) });
+    refreshStrip();
+  }, 'image/jpeg', 0.92);
+});
+
+function refreshStrip() {
+  capturedStrip.innerHTML = '';
+  if (!capturedBlobs.length) {
+    capturedStrip.innerHTML = '<span class="cap-count">No captures yet</span>';
+    camExtractBar.style.display = 'none'; return;
+  }
+  capturedBlobs.forEach(({ url }, i) => {
+    const w = document.createElement('div'); w.className = 'cap-thumb';
+    w.innerHTML = `<img src="${url}" alt="capture ${i+1}"><div class="cap-rm" data-i="${i}">✕</div>`;
+    capturedStrip.appendChild(w);
+  });
+  const cnt = document.createElement('span'); cnt.className = 'cap-count';
+  cnt.textContent = `${capturedBlobs.length}/10`; capturedStrip.appendChild(cnt);
+  camExtractCount.textContent = capturedBlobs.length;
+  camExtractBar.style.display = 'flex';  // must be flex (flex-direction:column set inline)
+}
+
+capturedStrip.addEventListener('click', e => {
+  const rm = e.target.closest('.cap-rm'); if (!rm) return;
+  const i = Number(rm.dataset.i);
+  URL.revokeObjectURL(capturedBlobs[i].url); capturedBlobs.splice(i, 1); refreshStrip();
+});
+
+scanFromPhotoBtn.addEventListener('click', () => camGalleryInput.click());
+camGalleryInput.addEventListener('change', () => {
+  const rem = 10 - capturedBlobs.length;
+  [...camGalleryInput.files].slice(0, rem).forEach(f => capturedBlobs.push({ blob: f, url: URL.createObjectURL(f) }));
+  camGalleryInput.value = ''; refreshStrip();
+});
+
+extractCamBtn.addEventListener('click', () => {
+  if (!capturedBlobs.length) return;
+  const form = new FormData();
+  capturedBlobs.forEach(({ blob }, i) => form.append('images', blob, `capture_${i+1}.jpg`));
+  const preprocess = document.getElementById('camPreprocess').checked;
+  submitExtraction(form, `Extracted from ${capturedBlobs.length} camera capture(s)`, preprocess, false);
+});
+
+/* ── Shared extraction ── */
+const resultsSection = document.getElementById('resultsSection');
+const resultBody     = document.getElementById('resultBody');
+const resultBadge    = document.getElementById('resultBadge');
+const copyResultBtn  = document.getElementById('copyResultBtn');
+
+async function submitExtraction(formData, label, preprocessEnabled, singleMode = false) {
+  resultsSection.style.display = '';
+  resultBody.className = '';
+  resultBody.innerHTML = '<span style="color:var(--muted)">&#9203; Processing…</span>';
+  resultBadge.className = 'badge badge-yellow'; resultBadge.textContent = 'Running';
+  extractUploadBtn.disabled = true; extractCamBtn.disabled = true;
+  try {
+    const base = singleMode ? '/extract' : '/extract/multi';
+    const url  = preprocessEnabled ? `${base}?preprocess_enabled=true` : base;
+    const resp = await fetch(url, { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) {
+      resultBody.textContent = `Error ${resp.status}: ${data.detail ?? JSON.stringify(data)}`;
+      resultBadge.className = 'badge badge-red'; resultBadge.textContent = `Error ${resp.status}`;
+    } else {
+      resultBody.textContent = JSON.stringify(data, null, 2);
+      resultBadge.className = 'badge badge-green'; resultBadge.textContent = label;
+    }
+  } catch(err) {
+    resultBody.textContent = 'Network error: ' + err.message;
+    resultBadge.className = 'badge badge-red'; resultBadge.textContent = 'Network error';
+  } finally {
+    extractUploadBtn.disabled = !uploadFiles.length;
+    extractCamBtn.disabled = !capturedBlobs.length;
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+copyResultBtn.addEventListener('click', () => {
+  const t = resultBody.textContent; if (!t) return;
+  navigator.clipboard.writeText(t).then(() => {
+    copyResultBtn.textContent = '✓ Copied!';
+    setTimeout(() => copyResultBtn.textContent = 'Copy JSON', 1800);
+  });
+});
+
+window.addEventListener('beforeunload', () => {
+  capturedBlobs.forEach(c => URL.revokeObjectURL(c.url)); stopCamera();
+});
+
+/* ── Health check ── */
+async function pingHealth() {
+  const dot   = document.getElementById('healthDot');
+  const label = document.getElementById('healthLabel');
+  try {
+    const r = await fetch('/health');
+    const d = await r.json();
+    if (r.ok && d.status === 'ok') {
+      dot.className = 'health-dot ok'; label.textContent = 'Server online';
+    } else {
+      dot.className = 'health-dot err'; label.textContent = 'Server error';
+    }
+  } catch {
+    dot.className = 'health-dot err'; label.textContent = 'Unreachable';
+  }
+}
+pingHealth();
+setInterval(pingHealth, 30000);  // re-check every 30 s
+</script>
+</body>
+</html>
