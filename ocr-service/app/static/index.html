@@ -287,8 +287,13 @@ function refreshUploadUI() {
 }
 
 function addUploadFiles(list) {
-  const rem = 10 - uploadFiles.length;
-  [...list].slice(0, rem).forEach(f => uploadFiles.push(f));
+  const isSingle = document.getElementById('modeSingle').classList.contains('active');
+  if (isSingle) {
+    if (list.length) uploadFiles = [list[0]];   // replace, don't accumulate
+  } else {
+    const rem = 10 - uploadFiles.length;
+    [...list].slice(0, rem).forEach(f => uploadFiles.push(f));
+  }
   refreshUploadUI();
 }
 
@@ -456,7 +461,7 @@ async function submitExtraction(formData, label, preprocessEnabled, singleMode =
   extractUploadBtn.disabled = true; extractCamBtn.disabled = true;
   try {
     const base = singleMode ? '/extract' : '/extract/multi';
-    const url  = preprocessEnabled ? `${base}?preprocess_enabled=true` : base;
+   const url  = `${base}?preprocess_enabled=${preprocessEnabled}`;
     const resp = await fetch(url, { method: 'POST', body: formData });
     const data = await resp.json();
     if (!resp.ok) {
