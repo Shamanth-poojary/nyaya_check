@@ -7,7 +7,7 @@ no normalization -- that's Phase 4/5/6/7. Keep this file boring on purpose.
 """
 
 import threading
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Union
 
 _engine = None
 _engine_lock = threading.Lock()
@@ -42,6 +42,13 @@ def _get_engine():
                     # so `lang=` is omitted -- passing both triggers a PaddleOCR warning.)
                     text_detection_model_name="PP-OCRv5_mobile_det",
                     text_recognition_model_name="en_PP-OCRv5_mobile_rec",
+                    # Diagnostic: lower the internal confidence cutoffs so weak
+                    # detections/recognitions surface in our output (as low-confidence
+                    # lines) instead of being silently dropped before we ever see them.
+                    # Defaults are roughly text_det_thresh=0.3, text_rec_score_thresh=0.5.
+                    text_det_thresh=0.2,
+                    text_det_box_thresh=0.4,
+                    text_rec_score_thresh=0.1,
                 )
     return _engine
 
