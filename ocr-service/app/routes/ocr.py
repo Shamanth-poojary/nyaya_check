@@ -2,10 +2,14 @@ import io
 import os
 import tempfile
 
+import cv2
+import numpy as np
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from PIL import Image
 
+from app.classification.fields import classify_fields
 from app.ocr.paddle import run_ocr
+from app.preprocessing.pipeline import PreprocessConfig, preprocess
 from app.schemas.response import BoundingBox, ExtractionResponse, RawOCRLine, empty_response
 
 router = APIRouter()
@@ -15,17 +19,24 @@ MAX_FILE_SIZE_MB = 15
 
 
 @router.post("/extract", response_model=ExtractionResponse)
-async def extract(image: UploadFile = File(...)) -> ExtractionResponse:
+async def extract(
+    image: UploadFile = File(...),
+    preprocess_enabled: bool = True,
+) -> ExtractionResponse:
     """
-    Phase 1: validate the upload and return a well-formed placeholder JSON.
+    Validate the upload, optionally run it through the OpenCV preprocessing
+    pipeline (Phase 3), then through PaddleOCR (Phase 2), populating rawOCR.
 
-    Later phases wire in, in order:
-      Phase 3 - OpenCV preprocessing
-      Phase 2 - PaddleOCR (raw text + bbox + confidence)
+    Set `preprocess_enabled=false` (query param) to run OCR on the raw
+    image untouched -- use this to A/B test whether preprocessing is
+    actually helping on your own test images, per the project plan's
+    "measure, don't assume" guidance.
+
+    Later phases still to come:
       Phase 4 - OCR normalization
       Phase 5/6/7 - Regex + keyword + NER classification, commodity category
       Phase 8 - Visual analysis
-      Phase 9 - Evidence assembly (raw OCR, confidence, crops)
+      Phase 9 - Evidence assembly
     """
     if image.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
@@ -45,37 +56,34 @@ async def extract(image: UploadFile = File(...)) -> ExtractionResponse:
     try:
         pil_image = Image.open(io.BytesIO(contents))
         pil_image.verify()
-        pil_image = Image.open(io.BytesIO(contents))  # reopen: verify() closes it
+        pil_image = Image.open(io.BytesIO(contents)).convert("RGB")  # reopen: verify() closes it
         width, height = pil_image.size
     except Exception:
         raise HTTPException(status_code=400, detail="File is not a valid image")
 
     response = empty_response(image_id=image.filename or "unknown", width=width, height=height)
 
-    # Phase 2: run PaddleOCR and populate rawOCR only. Classification into
-    # named fields (MRP, net qty, dates, etc.) happens in later phases.
-    #
-    # Downscale large photos before OCR -- inference time scales with pixel
-    # count, and phone photos are often much bigger than needed for text
-    # detection. Bounding boxes come back in the resized image's coordinate
-    # space, so we scale them back up to match the ORIGINAL width/height
-    # reported in `document`, keeping bboxes consistent for downstream
-    # spatial rules (Rules 7-10).
-    MAX_DIMENSION = 1600
-    longest_side = max(width, height)
-    scale = 1.0
-    ocr_image = pil_image
-    if longest_side > MAX_DIMENSION:
-        scale = MAX_DIMENSION / longest_side
-        new_size = (round(width * scale), round(height * scale))
-        ocr_image = pil_image.resize(new_size, Image.LANCZOS)
+    # PIL gives RGB; OpenCV expects BGR.
+    bgr_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
+    if preprocess_enabled:
+        result = preprocess(bgr_image, PreprocessConfig())
+        ocr_image_bgr = result.image
+        scale = result.scale
+    else:
+        # Still resize even with preprocessing off, purely for OCR speed --
+        # this is NOT part of the accuracy comparison, just keeps the
+        # "off" path from being unusably slow on large phone photos.
+        from app.preprocessing.resize import resize_image
+
+        ocr_image_bgr, scale = resize_image(bgr_image, max_dimension=1600)
 
     suffix = os.path.splitext(image.filename or "")[1] or ".jpg"
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            ocr_image.convert("RGB").save(tmp, format="JPEG", quality=92)
             tmp_path = tmp.name
+        cv2.imwrite(tmp_path, ocr_image_bgr)
 
         lines = run_ocr(tmp_path)
         inverse_scale = 1.0 / scale  # 1.0 if we didn't resize
@@ -92,6 +100,11 @@ async def extract(image: UploadFile = File(...)) -> ExtractionResponse:
             )
             for line in lines
         ]
+
+        # Phase 5: classify raw OCR lines into named fields. rawOCR above
+        # stays untouched as the raw evidence layer -- this only adds
+        # structure on top of it.
+        classify_fields(response, response.rawOCR)
     except Exception as exc:
         # Don't fail the whole request if the OCR engine can't load (e.g. no
         # internet for first-time model download) -- degrade gracefully and

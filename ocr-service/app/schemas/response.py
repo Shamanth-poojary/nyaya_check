@@ -64,11 +64,23 @@ class NetQuantity(BaseModel):
     confidence: float = 0.0
 
 
-class ManufacturingDate(BaseModel):
+class DateField(BaseModel):
+    """Shared shape for manufacturing / expiry / packing dates."""
     raw: Optional[str] = None
-    dateType: Optional[str] = None  # manufacturing | packing | import
+    dateType: Optional[str] = None  # manufacturing | expiry | packing | import
+    day: Optional[int] = None
     month: Optional[int] = None
     year: Optional[int] = None
+    bbox: Optional[BoundingBox] = None
+    found: bool = False
+    confidence: float = 0.0
+
+
+class BatchNumber(BaseModel):
+    """Not in the original contract -- added after real test photos showed
+    a 'B.NO:...' batch/lot code that has nowhere else to go."""
+    value: Optional[str] = None
+    raw: Optional[str] = None
     bbox: Optional[BoundingBox] = None
     found: bool = False
     confidence: float = 0.0
@@ -133,7 +145,9 @@ class ExtractionResponse(BaseModel):
     importer: PartyInfo = Field(default_factory=PartyInfo)
     mrp: MRP = Field(default_factory=MRP)
     netQuantity: NetQuantity = Field(default_factory=NetQuantity)
-    manufacturingDate: ManufacturingDate = Field(default_factory=ManufacturingDate)
+    manufacturingDate: DateField = Field(default_factory=DateField)
+    expiryDate: DateField = Field(default_factory=DateField)
+    batchNumber: BatchNumber = Field(default_factory=BatchNumber)
     dimensions: List[Dimension] = Field(default_factory=list)
     consumerCare: ConsumerCare = Field(default_factory=ConsumerCare)
     quantityQualifiers: List[QuantityQualifier] = Field(default_factory=list)
