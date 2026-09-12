@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from PIL import Image
 
 from app.classification.fields import classify_fields
+from app.ocr.normalize import merge_split_lines
 from app.ocr.paddle import run_ocr
 from app.preprocessing.pipeline import PreprocessConfig, preprocess
 from app.schemas.response import BoundingBox, ExtractionResponse, RawOCRLine, empty_response
@@ -21,16 +22,20 @@ MAX_FILE_SIZE_MB = 15
 @router.post("/extract", response_model=ExtractionResponse)
 async def extract(
     image: UploadFile = File(...),
-    preprocess_enabled: bool = True,
+    preprocess_enabled: bool = False,
 ) -> ExtractionResponse:
     """
     Validate the upload, optionally run it through the OpenCV preprocessing
     pipeline (Phase 3), then through PaddleOCR (Phase 2), populating rawOCR.
 
-    Set `preprocess_enabled=false` (query param) to run OCR on the raw
-    image untouched -- use this to A/B test whether preprocessing is
-    actually helping on your own test images, per the project plan's
-    "measure, don't assume" guidance.
+    Defaults to `preprocess_enabled=False`: A/B testing on real photos
+    showed CLAHE contrast enhancement (Phase 3) can cause PaddleOCR to
+    split a single physical line (e.g. "MRP :RS 40") into two separate
+    detections, breaking classification. Line-merging normalization
+    (Phase 4) now repairs this either way, but until preprocessing shows a
+    clear, proven benefit on a broader test set, raw OCR is the safer
+    default. Set `preprocess_enabled=true` to opt into CLAHE + denoise for
+    comparison.
 
     Later phases still to come:
       Phase 4 - OCR normalization
@@ -86,6 +91,7 @@ async def extract(
         cv2.imwrite(tmp_path, ocr_image_bgr)
 
         lines = run_ocr(tmp_path)
+        lines = merge_split_lines(lines)  # Phase 4: repair same-row split detections
         inverse_scale = 1.0 / scale  # 1.0 if we didn't resize
         response.rawOCR = [
             RawOCRLine(

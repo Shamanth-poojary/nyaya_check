@@ -11,6 +11,42 @@ clean input.
 import re
 from typing import List, Optional
 
+# --- Fuzzy matching for short abbreviations ------------------------------------
+#
+# Short labels (MRP, EXP, MFD -- 3-4 chars) are the most fragile to OCR noise:
+# a single misread character changes the whole word ('MRP' -> 'MRE', 'EXP' ->
+# 'EXF'). Exact substring matching breaks on these; edit-distance tolerance
+# doesn't. Longer phrases ('Manufactured by', 'Customer Care') are more
+# robust already (more characters to get right), so they stay on plain
+# substring matching -- fuzzy-matching long phrases risks false positives.
+
+def _levenshtein(a: str, b: str) -> int:
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        curr = [i]
+        for j, cb in enumerate(b, 1):
+            curr.append(min(prev[j] + 1, curr[-1] + 1, prev[j - 1] + (ca != cb)))
+        prev = curr
+    return prev[-1]
+
+
+def _fuzzy_word_in(text: str, keyword: str, max_distance: int = 1) -> bool:
+    """True if any word in `text` is within `max_distance` edits of `keyword`."""
+    for word in re.findall(r"[A-Za-z]+", text):
+        if abs(len(word) - len(keyword)) <= max_distance and _levenshtein(word.lower(), keyword.lower()) <= max_distance:
+            return True
+    return False
+
+
+FUZZY_ABBREVIATIONS = {
+    "mfd": "manufacturing", "hfd": "manufacturing", "mfg": "manufacturing",
+    "exp": "expiry", "exf": "expiry",
+    "pkd": "packing",
+    "mrp": "MRP",
+}
+
 # --- Party role headers ------------------------------------------------------
 
 MANUFACTURER_KEYWORDS = ["manufactured by", "manufactured & marketed by", "mfg by", "mfd by"]
@@ -45,14 +81,18 @@ def is_consumer_care_line(text: str) -> bool:
 
 # 'HFD' included deliberately: observed OCR misread of 'MFD' in real test
 # photos (M/H confusion in dot-matrix print). Don't assume clean input.
-MANUFACTURING_DATE_KEYWORDS = ["mfd", "hfd", "mfg", "manufactured", "date of manufacture", "mfd."]
-EXPIRY_DATE_KEYWORDS = ["exp", "expiry", "best before", "use by", "exp."]
-PACKING_DATE_KEYWORDS = ["pkd", "packed on", "packing date"]
+# 'HFD' included deliberately: observed OCR misread of 'MFD' in real test
+# photos (M/H confusion in dot-matrix print). Don't assume clean input.
+MANUFACTURING_DATE_KEYWORDS = ["manufactured", "date of manufacture"]
+EXPIRY_DATE_KEYWORDS = ["expiry", "best before", "use by"]
+PACKING_DATE_KEYWORDS = ["packed on", "packing date"]
 
 
-def match_date_type_keyword(text: str) -> Optional[str]:
+def match_date_type_keyword(text):
     """Return 'manufacturing' | 'expiry' | 'packing' if this line's text
-    contains a date-type keyword, else None."""
+    contains a date-type keyword, else None. Short abbreviations (MFD, HFD,
+    EXP, EXF, PKD) use fuzzy matching since a single misread character
+    changes the whole word; longer phrases use exact substring matching."""
     lowered = text.lower()
     if any(re.search(rf"\b{re.escape(k)}\b", lowered) for k in EXPIRY_DATE_KEYWORDS):
         return "expiry"
@@ -60,6 +100,9 @@ def match_date_type_keyword(text: str) -> Optional[str]:
         return "packing"
     if any(re.search(rf"\b{re.escape(k)}\b", lowered) for k in MANUFACTURING_DATE_KEYWORDS):
         return "manufacturing"
+    for abbr, date_type in FUZZY_ABBREVIATIONS.items():
+        if date_type in ("manufacturing", "expiry", "packing") and _fuzzy_word_in(text, abbr):
+            return date_type
     return None
 
 

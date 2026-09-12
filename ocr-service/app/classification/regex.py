@@ -9,19 +9,31 @@ Exact-match assumptions break on real OCR text; these patterns don't.
 import re
 from typing import List, Optional, Tuple
 
+from app.classification.keywords import _fuzzy_word_in
+
 # --- MRP -------------------------------------------------------------------
 
-MRP_PATTERN = re.compile(
-    r"MRP\s*[:\-]?\s*(?:RS\.?|₹|INR)?\s*([\d,]+(?:\.\d{1,2})?)\s*/?",
-    re.IGNORECASE,
+# Amount only -- the 'MRP' keyword itself is checked separately (with fuzzy
+# tolerance) below, since a single misread character turns 'MRP' into 'MRE'
+# or similar, and requiring the literal string in one combined regex breaks
+# on exactly that kind of noise.
+AMOUNT_PATTERN = re.compile(
+    r"[:\-]?\s*(?:RS\.?|₹|INR)?\s*([\d,]+(?:\.\d{1,2})?)\s*/?"
 )
 
 TAX_INCLUDED_PATTERN = re.compile(r"incl(?:usive|\.)?\s*(?:of)?\s*(?:all)?\s*tax", re.IGNORECASE)
 
 
 def find_mrp(text: str) -> Optional[Tuple[float, bool]]:
-    """Return (value, tax_included) if an MRP is found in this line."""
-    match = MRP_PATTERN.search(text)
+    """Return (value, tax_included) if this line looks like an MRP declaration.
+
+    Requires a fuzzy match on 'MRP' (tolerating 1-character OCR noise) AND a
+    numeric amount somewhere in the same line -- not just a bare number,
+    since plenty of other fields (dates, batch codes) also contain digits.
+    """
+    if not _fuzzy_word_in(text, "mrp", max_distance=1):
+        return None
+    match = AMOUNT_PATTERN.search(text)
     if not match:
         return None
     value = float(match.group(1).replace(",", ""))

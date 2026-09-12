@@ -106,3 +106,37 @@ def test_hana3_barcode_not_misread_as_phone_number():
     phone_numbers = r.consumerCare.phone.split(" | ")
     assert len(phone_numbers) == 2
     assert not any("6095260584" in p for p in phone_numbers)
+
+
+def test_split_lines_are_merged_before_classification():
+    """Regression test for a real bug: with CLAHE preprocessing on,
+    PaddleOCR split 'MRP :RS 40' into 'MRE' + ':RS 40' (and similarly for
+    HFD/EXF date lines), which broke MRP and expiry-date classification
+    entirely since keyword and value ended up on different lines. This
+    reproduces those exact split detections and confirms merge_split_lines
+    (Phase 4) repairs them before the classifier ever sees the data."""
+    from app.ocr.normalize import merge_split_lines
+    from app.ocr.paddle import OCRLine
+
+    split_lines = [
+        OCRLine(text="B.NO:MNGMARDYI!4", bbox=(254, 701, 472, 737), confidence=0.92),
+        OCRLine(text="HFD", bbox=(259, 734, 306, 762), confidence=0.97),
+        OCRLine(text=":26/03/2026", bbox=(310, 728, 466, 759), confidence=0.99),
+        OCRLine(text="EXF", bbox=(258, 753, 310, 790), confidence=0.88),
+        OCRLine(text=":26 /09/2026", bbox=(306, 752, 482, 787), confidence=0.94),
+        OCRLine(text="MRE", bbox=(261, 783, 308, 815), confidence=0.81),
+        OCRLine(text=":RS 40", bbox=(303, 779, 422, 809), confidence=0.95),
+    ]
+
+    merged = merge_split_lines(split_lines)
+    rec_lines = [
+        _line(m.text, m.bbox[0], m.bbox[1], m.bbox[2], m.bbox[3], m.confidence) for m in merged
+    ]
+    r = _classify(rec_lines)
+
+    assert r.mrp.found is True
+    assert r.mrp.value == 40.0
+    assert r.manufacturingDate.found is True
+    assert r.manufacturingDate.month == 3
+    assert r.expiryDate.found is True
+    assert r.expiryDate.month == 9
