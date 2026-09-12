@@ -22,7 +22,43 @@ HANA1_LINES = [
     _line("USP :RS 0.07ML", 261, 804, 458, 837, 0.917),    # must NOT be read as net quantity
 ]
 
-# Captured from hana3.jpeg (back label: manufacturer, consumer care, etc.)
+# Captured from hana2.jpeg (nutrition panel + ingredients + net contents)
+HANA2_LINES = [
+    _line("Ingredients:", 271, 382, 347, 400, 0.999),
+    _line("Carbonated Water, Fresh Lemon", 210, 397, 402, 429, 0.869),
+    _line("Sugar, Salt, Acidity Regulator", 224, 415, 391, 440, 0.915),  # 'Salt' here is an INGREDIENT, not the category
+    _line("Nutritionalinformation", 226, 473, 338, 486, 0.979),
+    _line("per100ml(ApproximateValue", 206, 480, 355, 501, 0.893),      # must NOT be read as net quantity
+    _line("Per100ml", 359, 475, 410, 497, 0.965),
+    _line("MRP:", 244, 635, 290, 657, 0.997),
+    _line("Mfg. Date :", 244, 672, 312, 690, 0.969),
+    _line("Batch No.:", 244, 691, 312, 710, 0.993),
+    _line("Net Contents:", 226, 950, 407, 990, 0.985),   # keyword...
+    _line("600 ml", 252, 978, 401, 1033, 0.978),          # ...and value on a SEPARATE physical line
+]
+
+
+def test_hana2_net_quantity_found_across_separate_lines():
+    """Regression test for a real bug found in a 4-photo test: 'Net
+    Contents:' and '600 ml' sit on two separate physical lines (not a
+    split-detection artifact -- a genuine two-line label layout). The
+    classifier must search nearby lines, not just the same line, AND must
+    not get shadowed by the nutrition panel's 'per100ml' reference, which
+    appears earlier in reading order and matches the same number+unit shape."""
+    r = _classify(HANA2_LINES)
+    assert r.netQuantity.found is True
+    assert r.netQuantity.value == 600.0
+    assert r.netQuantity.normalizedUnit == "ml"
+
+
+def test_hana2_ingredient_list_not_misread_as_commodity_category():
+    """Regression test for a real bug: 'Sugar, Salt, Acidity Regulator' is
+    an INGREDIENT list, not the product's category. Naive whole-document
+    keyword matching classified this as category='Salt', which is wrong
+    for any product (a huge fraction of packaged foods list salt/sugar as
+    ingredients regardless of what the product actually is)."""
+    r = _classify(HANA2_LINES)
+    assert r.commodity.category != "Salt"
 HANA3_LINES = [
     _line("TEAR HERE AND", 223, 195, 302, 215, 0.99),
     _line("FIND THE CODE", 223, 208, 298, 223, 0.97),
@@ -88,6 +124,31 @@ def test_hana3_manufacturer_name_and_address():
     assert r.manufacturer.name == "Swadeshi Food & Beverages"
     assert "560032 Bengaluru" in r.manufacturer.address
     assert "Cross" in r.manufacturer.address
+
+
+def test_hana3_commodity_category_from_indirect_signal():
+    """No photo has an explicit 'product type' label -- category has to be
+    inferred from indirect signal: 'Swadeshi Food & Beverages' (manufacturer
+    name) and 'hanadrinks.in' (website). This is exactly the scenario
+    strict word-boundary keyword matching broke on (plurals, concatenated
+    text) before being fixed."""
+    r = _classify(HANA3_LINES)
+    assert r.commodity.found is True
+    assert r.commodity.category == "Beverage"
+
+
+def test_hana1_no_false_positive_commodity_category():
+    """hana1's text is pure batch/date/price data -- no category signal
+    should be manufactured out of nothing."""
+    r = _classify(HANA1_LINES)
+    assert r.commodity.found is False
+
+
+def test_commodity_short_keyword_avoids_false_substring_match():
+    """'tea' must not match inside unrelated words like 'instead' --
+    regression guard for the word-boundary vs substring matching split."""
+    from app.classification.commodity import classify_commodity
+    assert classify_commodity("please read the label instead of guessing") is None
 
 
 def test_hana3_consumer_care_phone_and_email():

@@ -108,7 +108,10 @@ def match_date_type_keyword(text):
 
 # --- Net quantity keywords -----------------------------------------------------
 
-NET_QUANTITY_KEYWORDS = ["net qty", "net quantity", "net wt", "net weight", "net vol", "net volume"]
+NET_QUANTITY_KEYWORDS = [
+    "net qty", "net quantity", "net wt", "net weight", "net vol", "net volume",
+    "net contents",  # "Net Contents:" is a common real-label phrasing
+]
 
 
 def is_net_quantity_line(text: str) -> bool:

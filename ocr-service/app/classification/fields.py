@@ -16,7 +16,8 @@ flag "not found", but can't un-trust a wrong value it doesn't know is wrong.
 
 from typing import List, Optional
 
-from app.classification import keywords, regex
+import re
+from app.classification import commodity, keywords, regex
 from app.schemas.response import (
     BatchNumber,
     DateField,
@@ -35,7 +36,15 @@ ROLE_BLOCK_MAX_LINES = 6
 # even though they contain a number+unit -- they're a different field that
 # happens to share the same shape (e.g. "USP :RS 0.07ML" is unit selling
 # PRICE per ml, not the product's net quantity).
-NET_QTY_EXCLUSION_KEYWORDS = ["usp", "unit selling price", "per unit", "mrp"]
+NET_QTY_EXCLUSION_KEYWORDS = [
+    "usp", "unit selling price", "per unit", "mrp",
+    "per 100", "per100", "per serving", "approximate value",  # nutrition-panel refs, not the declared net qty
+]
+
+NET_QTY_SEARCH_WINDOW = 3  # lines to check after a "Net Qty"/"Net Contents" keyword line
+                           # for its value -- real labels often put label and
+                           # value on separate physical lines, not just split
+                           # detections (see: "Net Contents:" / "600 ml")
 
 
 def classify_fields(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
@@ -51,6 +60,56 @@ def classify_fields(response: ExtractionResponse, lines: List[RawOCRLine]) -> No
     _classify_party_blocks(response, ordered, consumed_indices)
     _classify_consumer_care(response, ordered)
     _classify_qualifiers_and_misleading_terms(response, ordered)
+    _classify_commodity(response, ordered)
+
+
+
+# Section-boundary keywords: once we hit an ingredients list, we stop
+# treating text as category signal until we see one of these -- otherwise
+# a beverage listing "Salt" as an ingredient gets misclassified as the
+# category "Salt". Deliberately plain substring checks (not full regex
+# parsing) since we only need a "new section started" signal, not a
+# successful field extraction.
+SECTION_BOUNDARY_KEYWORDS = [
+    "mrp", "net qty", "net quantity", "net wt", "net weight", "net contents",
+    "mfg", "mfd", "hfd", "exp", "batch", "b.no",
+    "manufactured", "packed by", "imported by", "customer care", "consumer care",
+]
+
+
+def _classify_commodity(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
+    """Phase 6: coarse category classification from the FULL label text --
+    not any single line -- since category signal often comes from the
+    manufacturer's name or website domain rather than an explicit
+    'product type' declaration (see commodity.py docstring).
+
+    Ingredient lists are explicitly excluded: a product's ingredients
+    (e.g. "Sugar, Salt, Acidity Regulator") are not its category, but
+    share vocabulary with real category keywords (Salt, Sugar, Honey,
+    Rice...), so naive whole-document matching misclassifies real products.
+    """
+    ingredients_idx = next(
+        (i for i, l in enumerate(lines) if re.search(r"\bingredients\b", l.text, re.IGNORECASE)), None
+    )
+
+    if ingredients_idx is None:
+        kept_lines = lines
+    else:
+        end_idx = len(lines)
+        for i in range(ingredients_idx + 1, len(lines)):
+            lowered = lines[i].text.lower()
+            if any(kw in lowered for kw in SECTION_BOUNDARY_KEYWORDS):
+                end_idx = i
+                break
+        kept_lines = lines[:ingredients_idx] + lines[end_idx:]
+
+    all_text = " ".join(line.text for line in kept_lines)
+    hit = commodity.classify_commodity(all_text)
+    if hit:
+        category, confidence = hit
+        response.commodity.category = category
+        response.commodity.found = True
+        response.commodity.confidence = confidence
 
 
 def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
@@ -81,27 +140,48 @@ def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None
 
 
 def _classify_net_quantity(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
-    # Prefer lines with an explicit "Net Qty"/"Net Wt" keyword.
-    for line in lines:
-        if keywords.is_net_quantity_line(line.text):
-            hit = regex.find_net_quantity(line.text)
+    # Prefer a "Net Qty"/"Net Contents" keyword line, then search a small
+    # window of NEARBY lines (not just the same line) for the value --
+    # real labels sometimes put the label and value on separate physical
+    # lines (e.g. "Net Contents:" then "600 ml" below it).
+    for i, line in enumerate(lines):
+        if not keywords.is_net_quantity_line(line.text):
+            continue
+
+        hit = regex.find_net_quantity(line.text)
+        if hit:
+            response.netQuantity = NetQuantity(bbox=line.bbox, found=True, confidence=line.confidence, **hit)
+            return
+
+        for j in range(i + 1, min(i + 1 + NET_QTY_SEARCH_WINDOW, len(lines))):
+            candidate = lines[j]
+            hit = regex.find_net_quantity(candidate.text)
             if hit:
-                response.netQuantity = NetQuantity(bbox=line.bbox, found=True, confidence=line.confidence, **hit)
+                response.netQuantity = NetQuantity(
+                    bbox=candidate.bbox, found=True, confidence=candidate.confidence, **hit
+                )
                 return
 
     # Fall back to a bare quantity+unit match, but never on excluded lines
-    # (unit price, MRP, etc. share the same "number + unit" shape).
+    # (unit price, MRP, nutrition-panel "per 100ml" references, etc. share
+    # the same "number + unit" shape). Collect ALL candidates rather than
+    # stopping at the first hit -- a spurious nutrition-panel match earlier
+    # in reading order must not shadow the real value further down.
+    candidates = []
     for line in lines:
         lowered = line.text.lower()
         if any(k in lowered for k in NET_QTY_EXCLUSION_KEYWORDS):
             continue
         hit = regex.find_net_quantity(line.text)
         if hit:
-            response.uncertainFields.append(
-                f"Quantity '{hit['rawValue']}' found without a 'Net Qty' keyword nearby; "
-                "not confident this is the declared net quantity -- left unclassified."
-            )
-            return  # don't guess further; one ambiguous note is enough
+            candidates.append((hit, line))
+
+    if candidates:
+        hit, line = max(candidates, key=lambda c: c[1].confidence)
+        response.uncertainFields.append(
+            f"Quantity '{hit['rawValue']}' found without a 'Net Qty' keyword nearby; "
+            "not confident this is the declared net quantity -- left unclassified."
+        )
 
 
 def _classify_dates(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:

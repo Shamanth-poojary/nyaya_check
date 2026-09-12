@@ -34,6 +34,7 @@ CONFLICT_KEYS = {
     "manufacturingDate": ["day", "month", "year"],
     "expiryDate": ["day", "month", "year"],
     "netQuantity": ["normalizedValue", "normalizedUnit"],
+    "commodity": ["category"],
 }
 
 
