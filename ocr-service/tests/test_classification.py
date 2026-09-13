@@ -160,6 +160,73 @@ def test_bisleri_batch_number_found_despite_value_sorting_before_keyword():
     assert r.mrp.value == 20.0
 
 
+# --- Second real-photo batch: same 6 products re-tested after the first
+# round of fixes. Found three MORE real bugs -- a wrong value from a
+# glued-digit OCR artifact, a regression in the MRP windowed search
+# itself, and dates defaulting to the wrong type when their keyword sits
+# on the line ABOVE rather than the same line.
+
+def test_everest_mrp_not_a_glued_digit_artifact():
+    """Real bug: OCR read the MRP label as 'MRP7' -- a stray '7' fused
+    directly onto the keyword with zero separator. The real price (60.00)
+    is on a separate, adjacent line. A digit glued straight onto 'MRP'
+    with no space/colon/currency-symbol is virtually always OCR noise,
+    not an actual price."""
+    lines = [
+        _line("MRP7", 288, 338, 323, 353),
+        _line("60.00", 379, 341, 413, 355),
+    ]
+    r = _classify(lines)
+    assert r.mrp.found is True
+    assert r.mrp.value == 60.0
+
+
+def test_dove_mrp_windowed_search_skips_low_confidence_garbage():
+    """Regression test for a bug introduced by the MRP windowed-search fix
+    itself: a low-confidence garbled fragment ('E800 I', confidence 0.30)
+    sat closer in reading order than the real value (': 199.00', confidence
+    0.93), and taking the FIRST window candidate grabbed the garbage. Must
+    prefer the highest-confidence candidate in the window, not the first."""
+    lines = [
+        _line("MRPZ :180 ml", 224, 349, 317, 384),
+        _line("E800 I", 376, 349, 387, 385, confidence=0.30),
+        _line(": 199.00", 275, 375, 316, 386, confidence=0.93),
+    ]
+    r = _classify(lines)
+    assert r.mrp.found is True
+    assert r.mrp.value == 199.0
+
+
+def test_everest_expiry_date_keyword_on_preceding_line():
+    """'Use By' sits on its own line, with the date itself on the NEXT
+    line -- the date classifier only checked the date's own line for a
+    keyword, silently defaulting to 'manufacturing' even with 'Use By'
+    sitting immediately above it."""
+    lines = [
+        _line("Use By", 285, 398, 323, 419),
+        _line("11 JUL 2025", 380, 402, 442, 416),
+    ]
+    r = _classify(lines)
+    assert r.expiryDate.found is True
+    assert r.expiryDate.month == 7 and r.expiryDate.year == 2025
+    assert r.manufacturingDate.found is False
+
+
+def test_bisleri_expiry_date_keyword_merged_with_front_panel_text():
+    """Same preceding-line-keyword pattern, complicated by column
+    interleaving: 'Use By' got merged with unrelated front-panel tagline
+    text ('since 1969') into one garbled line, but the keyword is still
+    present as a substring and must still be found."""
+    lines = [
+        _line("since 1969 11 Use By", 42, 301, 198, 324),
+        _line("04 JUL 2025", 249, 299, 313, 313),
+    ]
+    r = _classify(lines)
+    assert r.expiryDate.found is True
+    assert r.expiryDate.month == 7 and r.expiryDate.year == 2025
+    assert r.manufacturingDate.found is False
+
+
 def test_hana2_net_quantity_found_across_separate_lines():
     """Regression test for a real bug found in a 4-photo test: 'Net
     Contents:' and '600 ml' sit on two separate physical lines (not a
@@ -181,6 +248,97 @@ def test_hana2_ingredient_list_not_misread_as_commodity_category():
     ingredients regardless of what the product actually is)."""
     r = _classify(HANA2_LINES)
     assert r.commodity.category != "Salt"
+
+
+# --- Aashirvaad Superior MP Atta (5 kg) regression tests ---
+#
+# Real failure mode confirmed on a real photo:
+# 1. 'MP' from 'SUPERIOR MP ATTA' (the product's own name) fuzzy-matched
+#    'MRP' (edit distance 1, both within the old length-diff tolerance of 1).
+# 2. That triggered is_mrp_line → windowed search.
+# 3. The windowed search found '77' from "Survey No. 77, 78, 79" in the
+#    manufacturer's address, which beat the real MRP line (₹295.00) on
+#    OCR confidence, returning a completely wrong price.
+#
+# These fixtures reproduce the OCR output from the back-of-pack label.
+# Bboxes are illustrative (right-column table region for the info block,
+# left region for the manufacturer address text that contains the survey numbers).
+AASHIRVAAD_LINES = [
+    # Front-panel product name — contains 'MP' which must NOT match 'MRP'
+    _line("AASHIRVAAD", 50, 80, 400, 140, 0.99),
+    _line("SUPERIOR MP ATTA", 50, 145, 420, 200, 0.98),
+    _line("WHOLE WHEAT FLOUR", 50, 205, 400, 240, 0.96),
+    # Manufacturer address block (back panel, left column)
+    # Contains survey numbers -- these must NEVER be mistaken for the MRP
+    _line("MANUFACTURED & PACKED BY:", 510, 80, 820, 100, 0.99),
+    _line("ITC Limited - Foods Division,", 510, 105, 820, 125, 0.97),
+    _line("Survey No. 77, 78, 79, Village: Mettupalayam,", 510, 130, 820, 150, 0.95),
+    _line("Taluk: Coimbatore - 641 301, Tamil Nadu, India.", 510, 155, 820, 175, 0.96),
+    # Ingredients
+    _line("INGREDIENTS:", 510, 185, 820, 200, 0.99),
+    _line("Whole Wheat", 510, 205, 820, 220, 0.98),
+    # Structured info table (back panel, bottom-right)
+    _line("Net Weight   : 5 kg", 510, 430, 820, 455, 0.98),
+    _line("MRP Rs       : 295.00", 510, 460, 820, 485, 0.97),
+    _line("(incl. of all taxes)", 510, 488, 820, 505, 0.95),
+    _line("Batch No.    : A4G0724", 510, 510, 820, 530, 0.96),
+    _line("Date of Packaging : 15 JUL 2024", 510, 535, 820, 555, 0.97),
+    _line("Use By       : 14 JAN 2025", 510, 560, 820, 578, 0.97),
+]
+
+
+def test_aashirvaad_mrp_not_address_number():
+    """Core regression: MRP must be 295.00 (from the info table), not 77, 78,
+    or 79 from the manufacturer's 'Survey No. 77, 78, 79' address line.
+    The old code fuzzy-matched 'MP' in 'SUPERIOR MP ATTA' as 'MRP', triggered
+    a windowed search that grabbed 77 from the address, and returned a
+    completely wrong price."""
+    r = _classify(AASHIRVAAD_LINES)
+    assert r.mrp.found is True
+    assert r.mrp.value == 295.0, (
+        f"Expected MRP=295.0 but got {r.mrp.value} -- "
+        "'MP' in product name must not fuzzy-match 'MRP'"
+    )
+
+
+def test_aashirvaad_batch_number_found():
+    """Batch number A4G0724 must be extracted correctly from 'Batch No. : A4G0724'
+    on the structured back-panel table."""
+    r = _classify(AASHIRVAAD_LINES)
+    assert r.batchNumber.found is True
+    assert r.batchNumber.value == "A4G0724", (
+        f"Expected batchNumber='A4G0724' but got {r.batchNumber.value!r}"
+    )
+
+
+def test_aashirvaad_mp_not_fuzzy_matched_as_mrp_keyword():
+    """Unit-level guard: 'SUPERIOR MP ATTA' alone (no MRP value present)
+    must NOT trigger is_mrp_line. If it does, the windowed search that
+    follows will grab the nearest number (the survey address) as the price."""
+    from app.classification.regex import is_mrp_line
+    assert not is_mrp_line("SUPERIOR MP ATTA"), (
+        "'MP' in a product name is not an MRP keyword -- "
+        "is_mrp_line must return False for this input"
+    )
+
+
+def test_aashirvaad_expiry_date_found():
+    """'Use By : 14 JAN 2025' must be classified as expiry date."""
+    r = _classify(AASHIRVAAD_LINES)
+    assert r.expiryDate.found is True
+    assert r.expiryDate.day == 14
+    assert r.expiryDate.month == 1
+    assert r.expiryDate.year == 2025
+
+
+def test_aashirvaad_packing_date_found():
+    """'Date of Packaging : 15 JUL 2024' must be classified as packing date."""
+    r = _classify(AASHIRVAAD_LINES)
+    assert r.packingDate.found is True
+    assert r.packingDate.day == 15
+    assert r.packingDate.month == 7
+    assert r.packingDate.year == 2024
+
 HANA3_LINES = [
     _line("TEAR HERE AND", 223, 195, 302, 215, 0.99),
     _line("FIND THE CODE", 223, 208, 298, 223, 0.97),

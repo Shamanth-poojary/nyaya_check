@@ -33,9 +33,27 @@ def _levenshtein(a: str, b: str) -> int:
 
 
 def _fuzzy_word_in(text: str, keyword: str, max_distance: int = 1) -> bool:
-    """True if any word in `text` is within `max_distance` edits of `keyword`."""
+    """True if any word in `text` is within `max_distance` edits of `keyword`.
+
+    Length guard: only words >= len(keyword) are considered. A word SHORTER
+    than the keyword can only reach it via a deletion edit, which is not a
+    realistic OCR-noise pattern (a misread character is substituted or
+    occasionally inserted, not silently dropped). Without this guard, a
+    2-letter product-name fragment like 'MP' (from 'SUPERIOR MP ATTA') would
+    fuzzy-match the 3-letter abbreviation 'MRP' (edit distance 1, length
+    diff 1), triggering a false windowed search that can grab an unrelated
+    number from the label text as the price.
+
+    Same-length substitutions (HFD→MFD, MRE→MRP, EXF→EXP) and
+    single-character insertions (MRRP→MRP) are still accepted -- those ARE
+    genuine OCR noise patterns and must remain tolerated.
+    """
     for word in re.findall(r"[A-Za-z]+", text):
-        if abs(len(word) - len(keyword)) <= max_distance and _levenshtein(word.lower(), keyword.lower()) <= max_distance:
+        # Reject words shorter than the keyword: deletion-only edits are not
+        # OCR noise. Only allow same-length (substitution) or longer (insertion).
+        if len(word) < len(keyword):
+            continue
+        if len(word) - len(keyword) <= max_distance and _levenshtein(word.lower(), keyword.lower()) <= max_distance:
             return True
     return False
 

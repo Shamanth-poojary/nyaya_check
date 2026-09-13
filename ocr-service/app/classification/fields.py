@@ -168,15 +168,36 @@ def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None
 
         # Keyword present but no valid amount on THIS line (either no
         # number at all, or the only number found was rejected as a
-        # quantity) -- check nearby lines before giving up.
+        # quantity) -- check nearby lines before giving up. Collect ALL
+        # candidates in the window rather than stopping at the first --
+        # a low-confidence OCR artifact (e.g. a garbled decorative
+        # fragment) can appear before the real, high-confidence value.
         if regex.is_mrp_line(line.text):
+            window_candidates = []
+            # Forward window: most common case (value below keyword).
             for j in range(i + 1, min(i + 1 + MRP_SEARCH_WINDOW, len(lines))):
                 candidate_line = lines[j]
                 bare_value = regex.find_bare_amount(candidate_line.text)
                 if bare_value is not None:
-                    tax_included = bool(regex.TAX_INCLUDED_PATTERN.search(line.text + " " + candidate_line.text)) or None
-                    candidates.append((bare_value, tax_included, candidate_line))
-                    break
+                    window_candidates.append((bare_value, candidate_line))
+
+            # Backward window: fallback for same-physical-row layouts where
+            # a glyph-height difference causes the value's bbox to sort
+            # fractionally above the keyword in reading order -- the
+            # forward-only search silently misses it in that case.
+            # Only searched if the forward window found nothing, preserving
+            # forward-first priority.
+            if not window_candidates:
+                for j in range(max(0, i - MRP_SEARCH_WINDOW), i):
+                    candidate_line = lines[j]
+                    bare_value = regex.find_bare_amount(candidate_line.text)
+                    if bare_value is not None:
+                        window_candidates.append((bare_value, candidate_line))
+
+            if window_candidates:
+                bare_value, best_line = max(window_candidates, key=lambda c: c[1].confidence)
+                tax_included = bool(regex.TAX_INCLUDED_PATTERN.search(line.text + " " + best_line.text)) or None
+                candidates.append((bare_value, tax_included, best_line))
 
     if not candidates:
         return
@@ -243,11 +264,18 @@ def _classify_net_quantity(response: ExtractionResponse, lines: List[RawOCRLine]
 
 
 def _classify_dates(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
-    for line in lines:
+    for i, line in enumerate(lines):
         date_hit = regex.find_date(line.text)
         if not date_hit:
             continue
-        date_type = keywords.match_date_type_keyword(line.text) or "manufacturing"
+        date_type = keywords.match_date_type_keyword(line.text)
+        if date_type is None and i > 0:
+            # Common layout: "Use By" (or similar) on its own line, with
+            # the date itself on the very next line -- without this,
+            # dates default to "manufacturing" even when a keyword is
+            # sitting right next to them, just not on the SAME line.
+            date_type = keywords.match_date_type_keyword(lines[i - 1].text)
+        date_type = date_type or "manufacturing"
 
         field = DateField(
             raw=line.text,
@@ -268,7 +296,7 @@ def _classify_dates(response: ExtractionResponse, lines: List[RawOCRLine]) -> No
             response.manufacturingDate = field
 
 
-BATCH_SEARCH_WINDOW = 3  # lines to check after a 'Batch No' keyword line
+BATCH_SEARCH_WINDOW = 3  # lines to check after (or before) a 'Batch No' keyword line
 
 
 def _classify_batch_number(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
@@ -281,7 +309,24 @@ def _classify_batch_number(response: ExtractionResponse, lines: List[RawOCRLine]
             return
 
         if regex.is_batch_line(line.text):
+            # Forward window: most common case (value on the line(s) after
+            # the keyword).
             for j in range(i + 1, min(i + 1 + BATCH_SEARCH_WINDOW, len(lines))):
+                candidate_line = lines[j]
+                bare_batch = regex.find_bare_batch_value(candidate_line.text)
+                if bare_batch:
+                    response.batchNumber = BatchNumber(
+                        value=bare_batch, raw=candidate_line.text, bbox=candidate_line.bbox,
+                        found=True, confidence=candidate_line.confidence,
+                    )
+                    return
+
+            # Backward window: fallback for same-physical-row layouts where
+            # a glyph-height difference causes the value's bbox to sort
+            # fractionally ABOVE the keyword in reading order (e.g. 'B0724'
+            # bounding box 2 px higher than 'Batch No.' due to digit vs
+            # letter height). The forward-only search silently misses that.
+            for j in range(max(0, i - BATCH_SEARCH_WINDOW), i):
                 candidate_line = lines[j]
                 bare_batch = regex.find_bare_batch_value(candidate_line.text)
                 if bare_batch:

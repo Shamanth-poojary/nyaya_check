@@ -9,7 +9,7 @@ Exact-match assumptions break on real OCR text; these patterns don't.
 import re
 from typing import List, Optional, Tuple
 
-from app.classification.keywords import _fuzzy_word_in
+from app.classification.keywords import _fuzzy_word_in, _levenshtein
 
 # --- MRP -------------------------------------------------------------------
 
@@ -47,10 +47,35 @@ def find_bare_amount(text: str) -> Optional[float]:
     return None
 
 
+MRP_TOKEN_PATTERN = re.compile(r"[A-Za-z]+")
+
+
+def _mrp_keyword_end_index(text: str) -> Optional[int]:
+    """Find the end index of the fuzzy-matched 'mrp' keyword TOKEN, or None.
+
+    Length guard: only words >= 3 characters are considered. A 2-letter word
+    (e.g. 'MP' from 'SUPERIOR MP ATTA') can only reach 'MRP' via a deletion
+    edit, which is not an OCR-noise pattern -- OCR misreads substitute or
+    occasionally insert characters, they do not silently drop them. Without
+    this guard, 'MP' would match 'MRP' (edit distance 1, length diff 1),
+    triggering a false windowed search that grabs an unrelated number as
+    the price (observed: Survey No. 77 from the manufacturer's address).
+    """
+    for m in MRP_TOKEN_PATTERN.finditer(text):
+        word = m.group(0)
+        # Reject words shorter than 'mrp' (3 chars): deletion-only edits are
+        # not OCR noise. Only same-length (substitution) or longer (insertion).
+        if len(word) < 3:
+            continue
+        if len(word) - 3 <= 1 and _levenshtein(word.lower(), "mrp") <= 1:
+            return m.end()
+    return None
+
+
 def is_mrp_line(text: str) -> bool:
     """True if this line looks like it's introducing an MRP, regardless of
     whether the amount is also present on this same line."""
-    return _fuzzy_word_in(text, "mrp", max_distance=1)
+    return _mrp_keyword_end_index(text) is not None
 
 
 def find_mrp(text: str) -> Optional[Tuple[float, bool]]:
@@ -61,8 +86,17 @@ def find_mrp(text: str) -> Optional[Tuple[float, bool]]:
     since plenty of other fields (dates, batch codes) also contain digits.
     Scans ALL number candidates on the line and skips any immediately
     followed by a unit (g/ml/kg/...) -- that's a quantity, not a price.
+
+    Also rejects a digit glued DIRECTLY onto the keyword with zero
+    separator (e.g. OCR-garbled "MRP7") -- real labels always have some
+    gap (space, colon, currency symbol) between the label and its value;
+    a digit fused onto the letters is almost always a stray OCR artifact,
+    not an actual price.
     """
-    if not _fuzzy_word_in(text, "mrp", max_distance=1):
+    keyword_end = _mrp_keyword_end_index(text)
+    if keyword_end is None:
+        return None
+    if keyword_end < len(text) and text[keyword_end].isdigit():
         return None
     for match in AMOUNT_PATTERN.finditer(text):
         remainder = text[match.end():]
