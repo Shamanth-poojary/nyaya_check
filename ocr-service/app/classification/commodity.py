@@ -43,7 +43,17 @@ CATEGORY_KEYWORDS = {
     "Milk Powder": ["milk powder", "infant formula"],
     "Beverage": ["beverage", "soft drink", "juice", "soda", "healthy drink", "drinks"],
     "Packaged Drinking Water": ["packaged drinking water", "mineral water"],
-    "Snacks": ["namkeen", "chips", "snack"],
+    # Snacks: "bhujia" and "savoury" added for Haldiram's-style labels where
+    # the decorative 'INDIAN SNACKS' badge text may be absent or OCR-merged.
+    "Snacks": ["namkeen", "chips", "snack", "bhujia", "savoury", "savory", "sev", "mixture"],
+    # Dairy: covers UHT milk cartons (Nandini), flavoured milk, curd, ghee.
+    # 'cream' deliberately excluded -- it overlaps with the Cosmetic category
+    # and causes false positives on personal-care labels (shampoo, lotion).
+    # 'milk' is 4 chars = SHORT_KEYWORD_LENGTH, so _count_keyword_hits uses
+    # word-boundary matching -- safe against 'Cocamidopropyl' and similar.
+    "Dairy": ["milk", "toned milk", "skimmed milk", "full cream milk",
+               "pasteurized milk", "uht milk", "curd", "yogurt", "ghee",
+               "paneer", "dairy"],
     "Soap": ["soap", "bathing bar"],
     "Detergent": ["detergent", "washing powder"],
     "Toothpaste": ["toothpaste", "tooth paste"],

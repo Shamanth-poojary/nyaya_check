@@ -340,13 +340,66 @@ def _classify_batch_number(response: ExtractionResponse, lines: List[RawOCRLine]
 ROLE_BLOCK_MAX_LINES = 10  # generous window since column-filtering below can
                             # skip several cross-column lines before finding
                             # the next genuine same-column address line
-COLUMN_OVERLAP_MIN_PX = 1   # any horizontal overlap at all counts as "same column"
 
 
-def _horizontal_overlap(a: RawOCRLine, b: RawOCRLine) -> int:
-    left = max(a.bbox.xmin, b.bbox.xmin)
-    right = min(a.bbox.xmax, b.bbox.xmax)
-    return max(0, right - left)
+def _is_same_column(a: RawOCRLine, b: RawOCRLine) -> bool:
+    """True if lines are stacked in the same column.
+
+    A marginal overlap (e.g. wide text blocks in adjacent columns that
+    barely touch) is rejected. At least one line's horizontal center must
+    fall within the other line's bounding box to count as the same column.
+    """
+    a_center = (a.bbox.xmin + a.bbox.xmax) / 2
+    b_center = (b.bbox.xmin + b.bbox.xmax) / 2
+
+    a_contains_b = a.bbox.xmin <= b_center <= a.bbox.xmax
+    b_contains_a = b.bbox.xmin <= a_center <= b.bbox.xmax
+
+    return a_contains_b or b_contains_a
+
+
+# Address start indicators: patterns that unambiguously mark where genuine
+# postal address content begins. Used by _clean_address_line to strip any
+# non-address prefix that OCR has merged onto the same line (e.g. an
+# ingredient-list fragment from the adjacent column on the same label row).
+#
+# Each alternative requires a keyword + digit or a known industrial-estate
+# acronym to minimise false positives on ingredient/description words.
+_ADDRESS_START_PATTERN = re.compile(
+    r"(?:"
+    # Keyword + optional 'No.'/'#' + digit: 'Plot No. 7', 'Sector 63', 'Unit 4'
+    r"(?:plot|survey|sy\.?|gat|khasra|door|flat|house|unit|phase|block|sector|ward)"
+    r"\s*(?:no\.?|#)?\s*\d"
+    r"|"
+    # Common Indian industrial-estate acronyms that anchor an address:
+    # MIDC (Maharashtra), GIDC (Gujarat), SIDC/SIDCO (various states),
+    # KIADB (Karnataka), APIIC (Andhra Pradesh)
+    r"\b(?:MIDC|GIDC|SIDC|SIDCO|EPIP|KIADB|APIIC|IDA)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _clean_address_line(text: str) -> str:
+    """Strip any non-address prefix from a merged OCR line.
+
+    When Google Vision (or any OCR engine) encounters two side-by-side columns
+    at the same vertical position -- e.g. an ingredient list on the left and
+    'Plot No. 145, Sector 63' on the right -- it sometimes emits a SINGLE text
+    block whose content reads left-column-text + right-column-text.  That merged
+    line ends up in the address field looking like:
+
+        'Gram Flour (Besan), Iodised Salt, Spices & Plot No. 145, Sector 63'
+
+    _clean_address_line finds the first genuine address indicator in the text
+    and returns everything from that point onward, discarding the ingredient
+    prefix.  If no indicator is found (the line is already clean) the original
+    text is returned unchanged.
+    """
+    match = _ADDRESS_START_PATTERN.search(text)
+    if match and match.start() > 0:
+        return text[match.start():]
+    return text
 
 
 # Role-header phrasings where the entity name commonly follows ON THE SAME
@@ -379,10 +432,9 @@ def _classify_party_blocks(
             # Real labels often have a front-panel column (brand name,
             # tagline) sitting at a similar height to the back-panel
             # manufacturer/address column. Sorting by Y alone interleaves
-            # them; skip anything that doesn't horizontally overlap the
-            # keyword line's own column, rather than blindly accumulating
-            # whatever comes next in reading order.
-            if _horizontal_overlap(line, candidate) < COLUMN_OVERLAP_MIN_PX:
+            # them; skip anything that doesn't share the same column,
+            # rather than blindly accumulating whatever comes next in reading order.
+            if not _is_same_column(line, candidate):
                 continue
             if keywords.is_consumer_care_line(candidate.text):
                 break
@@ -401,11 +453,17 @@ def _classify_party_blocks(
 
         if same_line_name:
             name = same_line_name
-            address = ", ".join(l.text for l in block_lines) if block_lines else None
+            address = (
+                ", ".join(_clean_address_line(l.text) for l in block_lines)
+                if block_lines else None
+            )
             contributing = [line] + block_lines
         else:
             name = block_lines[0].text
-            address = ", ".join(l.text for l in block_lines[1:]) if len(block_lines) > 1 else None
+            address = (
+                ", ".join(_clean_address_line(l.text) for l in block_lines[1:])
+                if len(block_lines) > 1 else None
+            )
             contributing = [line] + block_lines
 
         avg_confidence = sum(l.confidence for l in contributing) / len(contributing)
@@ -429,7 +487,13 @@ def _classify_party_blocks(
 
 import re as _re
 
-CONSUMER_CARE_WINDOW = 5  # lines to scan after (and including) a 'Customer Care' keyword line
+# Raw lines to scan after (and including) the consumer care keyword before
+# column-filtering. Needs to be generous because on two-column label layouts
+# (e.g. Haldiram's) nutrition table rows from the adjacent column are
+# interleaved with the consumer care rows in reading order, consuming the
+# budget before reaching the phone/email line.  Column filtering removes those
+# cross-column lines so only the consumer-care column lines count.
+CONSUMER_CARE_RAW_WINDOW = 15
 
 _BARCODE_SHAPE = _re.compile(r"^[\d\s\-]+$")
 
@@ -445,13 +509,25 @@ def _looks_like_barcode(text: str) -> bool:
 
 
 def _classify_consumer_care(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
-    keyword_index = next((i for i, l in enumerate(lines) if keywords.is_consumer_care_line(l.text)), None)
+    keyword_line: Optional[RawOCRLine] = None
+    keyword_index: Optional[int] = None
+    for i, l in enumerate(lines):
+        if keywords.is_consumer_care_line(l.text):
+            keyword_index = i
+            keyword_line = l
+            break
 
     if keyword_index is not None:
-        # Spatial reasoning: only look near the actual "Customer Care" label,
-        # not the whole document -- otherwise unrelated digit strings
-        # elsewhere (e.g. a barcode) can look like a phone number.
-        search_lines = lines[keyword_index : keyword_index + CONSUMER_CARE_WINDOW]
+        # Take a generous raw slice, then keep only lines in the same column
+        # as the keyword line. On multi-column layouts the reading-order sort
+        # interleaves nutrition rows (different column) with consumer-care rows
+        # at the same Y -- without the column filter those nutrition rows
+        # exhaust the window budget before the phone / email line is reached.
+        raw_window = lines[keyword_index : keyword_index + CONSUMER_CARE_RAW_WINDOW]
+        search_lines = [
+            l for l in raw_window
+            if l is keyword_line or _is_same_column(keyword_line, l)
+        ]
         has_keyword_context = True
     else:
         # No keyword found at all -- fall back to a full-document scan, but
@@ -459,6 +535,7 @@ def _classify_consumer_care(response: ExtractionResponse, lines: List[RawOCRLine
         # and not something else (e.g. a manufacturer's own phone number).
         search_lines = lines
         has_keyword_context = False
+
 
     phones: List[str] = []
     email: Optional[str] = None

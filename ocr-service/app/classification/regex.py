@@ -210,19 +210,48 @@ def find_date(text: str) -> Optional[dict]:
 
 # --- Contact details -----------------------------------------------------------
 
-# Indian phone numbers: +91 prefix optional, 10 digits, optionally split into groups.
-# Indian phone numbers: +91 prefix optional, 10 digits, optionally split into
-# groups. Uses lookbehind/lookahead (not \b) on BOTH ends: a plain \b only
-# guards the end of the match, so a 10-digit substring embedded inside a
-# longer, unbroken digit run (e.g. a batch/lot code like "11221331000187")
-# could still match if it happened to end at a real word boundary. Requiring
-# "not preceded/followed by another digit" on both sides rejects that
-# regardless of where the boundary happens to fall.
-PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?91[-\s]?)?\d{5}[-\s]?\d{5}(?!\d)")
+# Indian phone numbers -- three distinct formats seen on real labels:
+#
+# 1. Mobile / 10-digit landline in 5+5 grouping (+91 prefix optional):
+#    e.g. "+91 98444 88117", "98444 87302"
+# 2. Toll-free 11-digit (1800 / 1860 / 1900 + 7 digits in any grouping):
+#    e.g. "1800 121 1007", "1800 10 22 221", "1800 345 1720", "1800 425 8030"
+#    All four are real consumer-care numbers from real labels in the test set.
+# 3. +91-prefixed STD landline (area code 2-4 digits + local 6-8 digits):
+#    e.g. "+91-120-2400286" (Haldiram's Noida office, STD 120)
+#
+# Uses lookbehind/lookahead on BOTH ends so a digit run embedded inside a
+# longer unbroken run (batch codes, barcodes) is never partially matched.
+PHONE_PATTERN = re.compile(
+    r"(?<!\d)"
+    r"(?:"
+    # Branch 1: mobile / 10-digit (5+5, +91 optional)  -- existing
+    r"(?:\+?91[-\s]?)?\d{5}[-\s]?\d{5}"
+    r"|"
+    # Branch 2: toll-free 11-digit (1800/1860/1900 + 7 digits, any grouping).
+    # (?:[-\s]?\d){7} matches the 7-digit body as individual digit steps with
+    # optional separator between each, handling formats like:
+    #   4+3+4  ("1800 121 1007"),  4+7   ("18001211007")
+    #   4+2+2+3 ("1800 10 22 221"), 4+3+4 ("1800 345 1720")
+    r"1[89]\d{2}(?:[-\s]?\d){7}"
+    r"|"
+    # Branch 3: +91-prefixed STD landline (mandatory + or 91 prefix so bare
+    # area-code numbers elsewhere don't false-positive).
+    # Area code 2-4 digits, local number 6-8 digits, hyphen/space separator.
+    r"\+?91[-\s]\d{2,4}[-\s]\d{6,8}"
+    r")"
+    r"(?!\d)"
+)
 
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
-PIN_CODE_PATTERN = re.compile(r"\b(\d{6})\b")
+# Matches either 6 consecutive digits OR the common Indian spaced format
+# "NNN NNN" (e.g. "560 029" for Bengaluru -- both forms appear on real labels).
+# Used as an address-accumulation stop signal in _classify_party_blocks:
+# the party block ends when we see a PIN code line, so detecting the spaced
+# form prevents the accumulator from overshooting into the FSSAI/consumer-care
+# block that follows the address.
+PIN_CODE_PATTERN = re.compile(r"\b(\d{6})\b|\b(\d{3})\s(\d{3})\b")
 
 
 def find_phones(text: str) -> List[str]:
@@ -235,8 +264,18 @@ def find_email(text: str) -> Optional[str]:
 
 
 def find_pin_code(text: str) -> Optional[str]:
+    """Return a 6-digit PIN code string if found, else None.
+
+    Matches both the compact form ('440016') and the common spaced 3+3
+    form seen on real labels ('560 029', '249 403') -- the spaced form is
+    returned without the internal space so callers always get 6 clean digits.
+    """
     match = PIN_CODE_PATTERN.search(text)
-    return match.group(1) if match else None
+    if not match:
+        return None
+    if match.group(1):          # 6 consecutive digits
+        return match.group(1)
+    return match.group(2) + match.group(3)  # spaced 3+3, normalised
 
 
 # --- Batch / lot number --------------------------------------------------------

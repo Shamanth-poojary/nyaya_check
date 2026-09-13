@@ -553,3 +553,373 @@ def test_multi_image_merge_flags_genuine_conflicts():
 
     assert merged.mrp.value == 40.0  # higher confidence wins
     assert any("Conflicting" in note and "mrp" in note for note in merged.uncertainFields)
+
+
+# ============================================================================
+# Multi-product audit: Bisleri, Dove, Tata Tea, Nandini, Haldiram's
+# ============================================================================
+#
+# Fixtures reproduce OCR-realistic text from the back-panel photos.
+# Bboxes are illustrative but geometrically consistent with single-column
+# right-panel layouts. Each fixture exercises at least one of the 4 bugs
+# identified in the September 2026 multi-product audit.
+#
+# Bug 1: "use before" (Dove) not in EXPIRY_DATE_KEYWORDS  → wrong date type
+# Bug 2: 11-digit toll-free phones (1800 + 7 digits) not matched by 5+5 pattern
+# Bug 3: Spaced PIN codes ("560 029") not detected → address accumulation drifts
+# Bug 4: Missing Dairy commodity category; Snacks missing bhujia/savoury
+
+# ---------------------------------------------------------------------------
+# Bisleri International Pvt. Ltd. — 1L Packaged Drinking Water
+# Real consumer-care phone: 1800 121 1007 (toll-free, 4+3+4 format)
+# ---------------------------------------------------------------------------
+BISLERI_LINES = [
+    _line("PACKAGED DRINKING WATER", 50, 50, 500, 75, 0.99),
+    _line("INGREDIENTS: Treated Water, Minerals", 50, 90, 500, 110, 0.97),
+    _line("(Calcium, Magnesium, Potassium)", 50, 112, 500, 130, 0.96),
+    _line("Net Quantity: 1 L", 50, 200, 500, 225, 0.99),
+    _line("MRP Rs  : 20.00", 50, 228, 500, 253, 0.98),
+    _line("(incl. of all taxes)", 50, 255, 500, 275, 0.96),
+    _line("Batch No. B0724", 50, 278, 500, 303, 0.97),
+    _line("Date of Packaging : 05 JUL 2024", 50, 306, 500, 328, 0.98),
+    _line("Use By : 04 JUL 2025", 50, 332, 500, 352, 0.97),
+    _line("MANUFACTURED BY:", 50, 410, 500, 430, 0.99),
+    _line("Bisleri International Pvt. Ltd.", 50, 432, 500, 452, 0.98),
+    _line("Plot No. 7, MIDC, Hingna,", 50, 454, 500, 474, 0.97),
+    _line("Nagpur - 440016, Maharashtra, India.", 50, 476, 500, 496, 0.96),
+    _line("For consumer complaints contact:", 50, 520, 500, 540, 0.99),
+    _line("Bisleri@bisleri.co.in | Ph: 1800 121 1007", 50, 542, 500, 562, 0.97),
+    _line("www.bisleri.com", 50, 564, 500, 584, 0.96),
+]
+
+# ---------------------------------------------------------------------------
+# Dove Intense Repair Shampoo — 180 ml
+# Bug 1: "Use Before" must be expiry (not manufacturing)
+# Bug 2: Toll-free "1800 10 22 221" (4+2+2+3 format)
+# ---------------------------------------------------------------------------
+DOVE_LINES = [
+    _line("Dove Intense Repair Shampoo", 50, 50, 500, 72, 0.99),
+    _line("INGREDIENTS: Water, Sodium Laureth Sulfate,", 50, 90, 500, 110, 0.97),
+    _line("Dimethicone, Cocamidopropyl Betaine,", 50, 112, 500, 130, 0.96),
+    _line("Glycerin, Fragrance, Glycol Distearate.", 50, 132, 500, 150, 0.95),
+    _line("MANUFACTURED BY: Hindustan Unilever Ltd.", 50, 200, 500, 218, 0.99),
+    _line("Unit-9, Plot No. 1, Sector 1A,", 50, 220, 500, 238, 0.97),
+    _line("Haridwar - 249 403, Uttarakhand, India.", 50, 240, 500, 258, 0.96),
+    _line("FOR CONSUMER COMPLAINTS / FEEDBACK:", 50, 300, 500, 320, 0.99),
+    _line("Toll Free: 1800 10 22 221", 50, 322, 500, 342, 0.98),
+    _line("Email: lever.care@unilever.com", 50, 344, 500, 364, 0.98),
+    _line("Visit: www.dove.in", 50, 366, 500, 386, 0.96),
+    _line("Net Vol.  : 180 ml", 50, 430, 500, 455, 0.99),
+    _line("MRP Rs    : 199.00", 50, 458, 500, 480, 0.97),
+    _line("(incl. of all taxes)", 50, 483, 500, 500, 0.96),
+    _line("Batch No. : D0724", 50, 505, 500, 525, 0.97),
+    _line("Mfg. Date : 05 JUL 2024", 50, 528, 500, 548, 0.98),
+    _line("Use Before : 04 JUL 2025", 50, 551, 500, 571, 0.97),  # Bug 1 trigger
+]
+
+# ---------------------------------------------------------------------------
+# Tata Tea Premium — 250 g
+# Bug 2: Toll-free "1800 345 1720" (4+3+4 format)
+# ---------------------------------------------------------------------------
+TATA_TEA_LINES = [
+    _line("TATA TEA PREMIUM", 50, 50, 500, 72, 0.99),
+    _line("DESH KI CHAI", 50, 75, 500, 95, 0.98),
+    _line("INGREDIENTS: Tea", 50, 130, 500, 150, 0.99),
+    _line("MANUFACTURED & PACKED BY:", 50, 180, 500, 200, 0.99),
+    _line("Tata Consumer Products Limited", 50, 202, 500, 222, 0.98),
+    _line("1, Bishop Lefroy Road, Kolkata - 700 020,", 50, 224, 500, 244, 0.97),
+    _line("West Bengal, India.", 50, 246, 500, 266, 0.96),
+    _line("FOR CONSUMER COMPLAINTS / FEEDBACK:", 50, 300, 500, 320, 0.99),
+    _line("Tata Consumer Care", 50, 322, 500, 342, 0.98),
+    _line("Toll Free: 1800 345 1720", 50, 344, 500, 364, 0.98),
+    _line("Email: care@tataconsumer.com", 50, 366, 500, 386, 0.98),
+    _line("Net Weight    : 250 g", 50, 430, 500, 455, 0.99),
+    _line("MRP Rs        : 275.00", 50, 458, 500, 480, 0.98),
+    _line("(incl. of all taxes)", 50, 483, 500, 500, 0.96),
+    _line("Batch No.     : T0724", 50, 505, 500, 525, 0.97),
+    _line("Date of Packaging : 08 JUL 2024", 50, 528, 500, 548, 0.98),
+    _line("Use By        : 07 JUL 2025", 50, 551, 500, 571, 0.97),
+]
+
+# ---------------------------------------------------------------------------
+# Nandini Toned Milk — 1 L UHT
+# Bug 2: Toll-free "1800 425 8030" (4+3+4)
+# Bug 3: Spaced PIN "560 029" in manufacturer address
+# Bug 4: commodity = Dairy (no category at all before fix)
+# ---------------------------------------------------------------------------
+NANDINI_LINES = [
+    _line("TONED MILK", 50, 50, 500, 72, 0.99),
+    _line("UHT PROCESSED", 50, 75, 500, 95, 0.98),
+    _line("Net Quantity:  1 L", 50, 150, 500, 175, 0.99),
+    _line("MRP Rs  : 67.00", 50, 178, 500, 200, 0.98),
+    _line("(incl. of all taxes)", 50, 203, 500, 220, 0.96),
+    _line("Batch No.  : T0724", 50, 225, 500, 245, 0.97),
+    _line("Date of Packaging : 10 JUL 2024", 50, 248, 500, 268, 0.98),
+    _line("Use By     : 09 JAN 2025", 50, 271, 500, 291, 0.97),
+    _line("MANUFACTURED BY:", 50, 340, 500, 360, 0.99),
+    _line("Karnataka Co-operative Milk Producers' Federation Ltd.", 50, 362, 500, 382, 0.97),
+    # Spaced PIN "560 029" -- the stop-signal fix target (Bug 3)
+    _line("KMF Nandini Dairy, Bengaluru - 560 029, Karnataka, India.", 50, 384, 500, 404, 0.96),
+    # This line should NOT appear in the manufacturer address after the PIN fix
+    _line("Lic. No. 10012043000053", 50, 406, 500, 426, 0.95),
+    _line("FOR CONSUMER COMPLAINTS / FEEDBACK:", 50, 450, 500, 470, 0.99),
+    _line("Ph: 1800 425 8030 (Toll Free)", 50, 472, 500, 492, 0.98),
+    _line("Email: customercare@kmf.coop", 50, 494, 500, 514, 0.98),
+]
+
+# ---------------------------------------------------------------------------
+# Haldiram's Aloo Bhujia — 200 g
+# Bug 2: STD landline "+91-120-2400286"
+# Bug 4: commodity = Snacks (bhujia keyword)
+# ---------------------------------------------------------------------------
+HALDIRAMS_LINES = [
+    _line("Haldiram's", 50, 50, 500, 75, 0.99),
+    _line("ALOO BHUJIA", 50, 78, 500, 110, 0.99),
+    _line("RELISH THE GOODNESS OF DELIGHTFUL SAVOURY TREATS", 50, 112, 500, 132, 0.97),
+    _line("INDIAN SNACKS", 50, 145, 200, 175, 0.97),  # decorative badge
+    _line("INGREDIENTS:", 300, 145, 700, 165, 0.99),
+    _line("Potato (62%). Edible Vegetable Oil (Palmolein).", 300, 168, 700, 186, 0.96),
+    _line("Gram Flour (Besan), Iodised Salt, Spices &", 300, 188, 700, 206, 0.95),
+    _line("Condiments (Chilli, Black Pepper, Clove,", 300, 208, 700, 226, 0.95),
+    _line("Cardamom), Acidity Regulator (INS 330).", 300, 228, 700, 246, 0.94),
+    _line("MANUFACTURED & PACKED BY:", 550, 280, 900, 300, 0.99),
+    _line("Haldiram Foods International Ltd.", 550, 302, 900, 322, 0.98),
+    _line("Plot No. 145, Sector 63,", 550, 324, 900, 344, 0.97),
+    _line("Noida - 201307, Uttar Pradesh, India", 550, 346, 900, 366, 0.96),
+    _line("FOR CONSUMER COMPLAINTS / FEEDBACK:", 550, 400, 900, 420, 0.99),
+    _line("call us at +91-120-2400286", 550, 422, 900, 442, 0.98),  # STD landline
+    _line("or email at customercare@haldiram.com", 550, 444, 900, 464, 0.98),
+    _line("NET WEIGHT   : 200 g", 50, 530, 900, 555, 0.99),
+    _line("MRP Rs       : 60.00", 50, 558, 900, 580, 0.98),
+    _line("(incl. of all taxes)", 50, 583, 900, 600, 0.96),
+    _line("BATCH NO.    : AB0724", 50, 605, 900, 625, 0.97),
+    _line("DATE OF PACKAGING : 15 JUL 2024", 50, 628, 900, 648, 0.98),
+    _line("USE BY       : 14 NOV 2024", 50, 651, 900, 671, 0.97),
+]
+
+
+# --- Bug 1 tests: "Use Before" as expiry date --------------------------------
+
+def test_dove_use_before_classified_as_expiry():
+    """'Use Before' is a synonym for 'Use By'/'Best Before' but was NOT in
+    EXPIRY_DATE_KEYWORDS. Dove uses exactly this phrasing; before the fix it
+    defaulted to manufacturing date -- wrong field AND wrong type."""
+    r = _classify(DOVE_LINES)
+    assert r.expiryDate.found is True, "Dove expiry date must be found"
+    assert r.expiryDate.day == 4
+    assert r.expiryDate.month == 7
+    assert r.expiryDate.year == 2025
+    assert r.manufacturingDate.found is True, "Mfg date (05 JUL 2024) must still be found"
+    assert r.manufacturingDate.month == 7 and r.manufacturingDate.year == 2024
+
+
+def test_dove_mfg_date_not_overwritten_by_use_before():
+    """Confirming Mfg. Date and Use Before are classified into separate fields,
+    not both collapsed into manufacturingDate (the pre-fix behaviour)."""
+    r = _classify(DOVE_LINES)
+    # manufacturing date: 05 JUL 2024
+    assert r.manufacturingDate.found is True
+    assert r.manufacturingDate.day == 5 and r.manufacturingDate.year == 2024
+    # expiry: 04 JUL 2025 -- different year
+    assert r.expiryDate.found is True
+    assert r.expiryDate.year == 2025
+
+
+# --- Bug 2 tests: toll-free and STD landline phone extraction ----------------
+
+def test_bisleri_tollfree_phone_1800_4x3x4_extracted():
+    """'1800 121 1007' is a real 11-digit Indian toll-free number in 4+3+4
+    format. The old 5+5-only pattern could never match it."""
+    r = _classify(BISLERI_LINES)
+    assert r.consumerCare.found is True
+    assert r.consumerCare.phone is not None
+    assert "1800 121 1007" in r.consumerCare.phone, (
+        f"Expected toll-free 1800 121 1007 in phone, got: {r.consumerCare.phone!r}"
+    )
+
+
+def test_dove_tollfree_phone_1800_4x2x2x3_extracted():
+    """'1800 10 22 221' is a real toll-free number in an unusual 4+2+2+3
+    grouping -- most challenging for the pattern since it's not 3+4."""
+    r = _classify(DOVE_LINES)
+    assert r.consumerCare.found is True
+    assert r.consumerCare.phone is not None
+    assert "1800 10 22 221" in r.consumerCare.phone, (
+        f"Expected 1800 10 22 221 in phone, got: {r.consumerCare.phone!r}"
+    )
+
+
+def test_tata_tea_tollfree_phone_extracted():
+    """'1800 345 1720' — standard 4+3+4 toll-free format."""
+    r = _classify(TATA_TEA_LINES)
+    assert r.consumerCare.found is True
+    assert r.consumerCare.phone is not None
+    assert "1800 345 1720" in r.consumerCare.phone
+
+
+def test_nandini_tollfree_phone_extracted():
+    """'1800 425 8030' — standard 4+3+4 toll-free format."""
+    r = _classify(NANDINI_LINES)
+    assert r.consumerCare.found is True
+    assert r.consumerCare.phone is not None
+    assert "1800 425 8030" in r.consumerCare.phone
+
+
+def test_haldirams_std_landline_phone_extracted():
+    """'+91-120-2400286' is a +91-prefixed STD landline (area 120 = Noida,
+    local 2400286). The old 5+5 pattern failed on this 3+7 grouping."""
+    r = _classify(HALDIRAMS_LINES)
+    assert r.consumerCare.found is True
+    assert r.consumerCare.phone is not None
+    assert "2400286" in r.consumerCare.phone, (
+        f"Expected Noida landline in phone, got: {r.consumerCare.phone!r}"
+    )
+
+
+# --- Bug 3 tests: spaced PIN code stops address accumulation -----------------
+
+def test_nandini_spaced_pin_stops_address_at_correct_line():
+    """'Bengaluru - 560 029' contains the PIN in spaced 3+3 form. Without the
+    fix, find_pin_code returned None, address accumulation continued, and the
+    FSSAI licence number ('Lic. No. 10012043000053') was included in the
+    manufacturer address string -- wrong and misleading."""
+    r = _classify(NANDINI_LINES)
+    assert r.manufacturer.found is True
+    addr = r.manufacturer.address or ""
+    assert "Lic. No." not in addr, (
+        "FSSAI licence must not appear in manufacturer address -- "
+        "spaced PIN '560 029' should have stopped accumulation"
+    )
+
+
+def test_nandini_manufacturer_name_correct():
+    """Manufacturer name should be the federation, not 'KMF Nandini Dairy'
+    (which is actually the manufacturing unit, not the party entity)."""
+    r = _classify(NANDINI_LINES)
+    assert r.manufacturer.found is True
+    assert "Karnataka Co-operative" in r.manufacturer.name
+
+
+def test_haldirams_manufacturer_address_free_of_ingredients():
+    """Real failure mode: OCR merges two adjacent columns into ONE text line.
+    The ingredients column (left) and manufacturer address column (right) sit
+    at the same vertical position, so OCR emits a single block reading:
+
+        'Gram Flour (Besan), Iodised Salt, Spices & Plot No. 145, Sector 63,'
+
+    _is_same_column cannot help -- the text is already merged before we see it.
+    _clean_address_line must strip the ingredient prefix and return only the
+    address fragment starting at 'Plot No.'."""
+    merged_lines = [
+        _line("MANUFACTURED & PACKED BY: Haldiram Foods International Ltd.", 300, 280, 900, 300, 0.99),
+        # This is the OCR-merged line -- ingredients on the left, address on the right
+        _line("Gram Flour (Besan), Iodised Salt, Spices & Plot No. 145, Sector 63,", 300, 302, 900, 322, 0.97),
+        _line("Noida - 201307, Uttar Pradesh, India", 550, 324, 900, 344, 0.96),
+        _line("FOR CONSUMER COMPLAINTS / FEEDBACK:", 300, 400, 900, 420, 0.99),
+        _line("call us at +91-120-2400286", 300, 422, 900, 442, 0.98),
+        _line("NET WEIGHT   : 200 g", 50, 530, 900, 555, 0.99),
+        _line("MRP Rs       : 60.00", 50, 558, 900, 580, 0.98),
+    ]
+    r = _classify(merged_lines)
+    assert r.manufacturer.found is True
+    addr = r.manufacturer.address or ""
+    assert "Gram Flour" not in addr, (
+        "Ingredient prefix leaked into address -- _clean_address_line didn't strip it"
+    )
+    assert "Spices" not in addr
+    assert "Plot No. 145" in addr, f"Real address content missing, got: {addr!r}"
+    # MRP must still be found on the structured info table below the block
+    assert r.mrp.found is True, "MRP should be extracted from the label table"
+    assert r.mrp.value == 60.0
+    # Net quantity from the same table row
+    assert r.netQuantity.found is True
+    assert r.netQuantity.value == 200.0
+    # Consumer care phone (STD landline +91-120-2400286) must be extracted
+    assert r.consumerCare.found is True, "Consumer care section must be found"
+    assert r.consumerCare.phone is not None, "STD landline must be in consumer care phone"
+    assert "2400286" in r.consumerCare.phone
+
+# --- Bug 4 tests: commodity classification -----------------------------------
+
+def test_nandini_classified_as_dairy():
+    """Nandini Toned Milk contains 'TONED MILK' and 'milk' -- must classify
+    as Dairy. Before the fix there was no Dairy category at all, returning None."""
+    r = _classify(NANDINI_LINES)
+    assert r.commodity.found is True, "Dairy commodity must be found"
+    assert r.commodity.category == "Dairy", (
+        f"Expected 'Dairy', got {r.commodity.category!r}"
+    )
+
+
+def test_haldirams_classified_as_snacks():
+    """Haldiram's Aloo Bhujia front panel says 'INDIAN SNACKS' (existing 'snack'
+    keyword) AND 'ALOO BHUJIA' (new 'bhujia' keyword). Either alone is sufficient;
+    having both gives higher confidence than any other competing category."""
+    r = _classify(HALDIRAMS_LINES)
+    assert r.commodity.found is True, "Snacks commodity must be found"
+    assert r.commodity.category == "Snacks", (
+        f"Expected 'Snacks', got {r.commodity.category!r}"
+    )
+
+
+def test_haldirams_savoury_treats_not_false_positive_for_other_category():
+    """'SAVOURY TREATS' must not accidentally match a different category.
+    Specifically, 'Salt' contains 'salt' in the ingredient list but that section
+    is excluded from commodity classification. Confirms category isolation."""
+    r = _classify(HALDIRAMS_LINES)
+    assert r.commodity.category != "Salt"
+    assert r.commodity.category != "Spices"
+
+
+# --- Full-field sanity checks across all 5 products --------------------------
+
+def test_bisleri_full_field_extraction():
+    r = _classify(BISLERI_LINES)
+    assert r.mrp.found and r.mrp.value == 20.0
+    assert r.netQuantity.found and r.netQuantity.value == 1.0
+    assert r.batchNumber.found and r.batchNumber.value == "B0724"
+    assert r.packingDate.found and r.packingDate.month == 7 and r.packingDate.year == 2024
+    assert r.expiryDate.found and r.expiryDate.month == 7 and r.expiryDate.year == 2025
+    assert r.manufacturer.found and "Bisleri" in r.manufacturer.name
+    assert r.commodity.found and r.commodity.category == "Packaged Drinking Water"
+
+
+def test_dove_full_field_extraction():
+    r = _classify(DOVE_LINES)
+    assert r.mrp.found and r.mrp.value == 199.0
+    assert r.netQuantity.found and r.netQuantity.value == 180.0
+    assert r.batchNumber.found and r.batchNumber.value == "D0724"
+    # Dove uses "Mfg. Date" (manufacturing), not "Date of Packaging" (packing)
+    assert r.manufacturingDate.found and r.manufacturingDate.month == 7 and r.manufacturingDate.year == 2024
+    assert r.expiryDate.found and r.expiryDate.year == 2025   # the key one
+    assert r.manufacturer.found and "Unilever" in r.manufacturer.name
+    assert r.commodity.found and r.commodity.category == "Cosmetic"
+
+
+def test_tata_tea_full_field_extraction():
+    r = _classify(TATA_TEA_LINES)
+    assert r.mrp.found and r.mrp.value == 275.0
+    assert r.netQuantity.found and r.netQuantity.value == 250.0
+    assert r.batchNumber.found and r.batchNumber.value == "T0724"
+    assert r.packingDate.found and r.packingDate.month == 7 and r.packingDate.year == 2024
+    assert r.expiryDate.found and r.expiryDate.month == 7 and r.expiryDate.year == 2025
+    assert r.manufacturer.found and "Tata" in r.manufacturer.name
+    assert r.commodity.found and r.commodity.category == "Tea"
+
+
+def test_nandini_full_field_extraction():
+    r = _classify(NANDINI_LINES)
+    assert r.mrp.found and r.mrp.value == 67.0
+    assert r.netQuantity.found and r.netQuantity.value == 1.0
+    assert r.batchNumber.found and r.batchNumber.value == "T0724"
+    assert r.expiryDate.found and r.expiryDate.month == 1 and r.expiryDate.year == 2025
+
+
+def test_haldirams_full_field_extraction():
+    r = _classify(HALDIRAMS_LINES)
+    assert r.mrp.found and r.mrp.value == 60.0
+    assert r.netQuantity.found and r.netQuantity.value == 200.0
+    assert r.batchNumber.found and r.batchNumber.value == "AB0724"
+    assert r.packingDate.found and r.packingDate.month == 7 and r.packingDate.year == 2024
+    assert r.expiryDate.found and r.expiryDate.month == 11 and r.expiryDate.year == 2024
+    assert r.manufacturer.found and "Haldiram" in r.manufacturer.name

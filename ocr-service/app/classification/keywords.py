@@ -117,10 +117,8 @@ def is_consumer_care_line(text: str) -> bool:
 
 # 'HFD' included deliberately: observed OCR misread of 'MFD' in real test
 # photos (M/H confusion in dot-matrix print). Don't assume clean input.
-# 'HFD' included deliberately: observed OCR misread of 'MFD' in real test
-# photos (M/H confusion in dot-matrix print). Don't assume clean input.
 MANUFACTURING_DATE_KEYWORDS = ["manufactured", "date of manufacture"]
-EXPIRY_DATE_KEYWORDS = ["expiry", "best before", "use by"]
+EXPIRY_DATE_KEYWORDS = ["expiry", "best before", "use by", "use before"]
 PACKING_DATE_KEYWORDS = ["packed on", "packing date", "date of packaging"]
 
 
