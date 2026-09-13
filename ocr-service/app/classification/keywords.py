@@ -49,26 +49,44 @@ FUZZY_ABBREVIATIONS = {
 
 # --- Party role headers ------------------------------------------------------
 
-MANUFACTURER_KEYWORDS = ["manufactured by", "manufactured & marketed by", "mfg by", "mfd by"]
-PACKER_KEYWORDS = ["packed by", "packer"]
+MANUFACTURER_ONLY_KEYWORDS = ["manufactured by", "manufactured & marketed by", "mfg by", "mfd by"]
+PACKER_ONLY_KEYWORDS = ["packed by", "packer"]
 IMPORTER_KEYWORDS = ["imported by", "importer"]
 MARKETER_KEYWORDS = ["marketed by"]
+
+# Combined phrasing -- extremely common on real labels ("Manufactured &
+# Packed by X") where ONE entity fills multiple roles. Checked before the
+# single-role keywords below, since e.g. "packed by" is a substring of
+# "manufactured & packed by" and would otherwise steal the match and
+# silently drop the manufacturer role entirely.
+COMBINED_ROLE_KEYWORDS = [
+    (["manufactured & packed by", "manufactured and packed by"], ["manufacturer", "packer"]),
+    (["manufactured & marketed by", "manufactured and marketed by"], ["manufacturer"]),
+]
 
 CONSUMER_CARE_KEYWORDS = ["customer care", "consumer care", "consumer complaint"]
 
 
-def match_role_keyword(text: str) -> Optional[str]:
-    """Return 'manufacturer' | 'packer' | 'importer' | 'marketer' if this
-    line's text contains a role header, else None."""
+def match_role_keyword(text: str) -> Optional[List[str]]:
+    """Return the list of applicable roles ('manufacturer' | 'packer' |
+    'importer' | 'marketer') if this line's text contains a role header,
+    else None. A list, not a single role, because real labels commonly
+    name ONE entity for multiple roles at once ("Manufactured & Packed by
+    X") -- collapsing that to a single role silently drops information."""
     lowered = text.lower()
-    if any(k in lowered for k in MANUFACTURER_KEYWORDS):
-        return "manufacturer"
-    if any(k in lowered for k in PACKER_KEYWORDS):
-        return "packer"
+
+    for phrases, roles in COMBINED_ROLE_KEYWORDS:
+        if any(p in lowered for p in phrases):
+            return roles
+
+    if any(k in lowered for k in MANUFACTURER_ONLY_KEYWORDS):
+        return ["manufacturer"]
+    if any(k in lowered for k in PACKER_ONLY_KEYWORDS):
+        return ["packer"]
     if any(k in lowered for k in IMPORTER_KEYWORDS):
-        return "importer"
+        return ["importer"]
     if any(k in lowered for k in MARKETER_KEYWORDS):
-        return "marketer"
+        return ["marketer"]
     return None
 
 
@@ -85,7 +103,7 @@ def is_consumer_care_line(text: str) -> bool:
 # photos (M/H confusion in dot-matrix print). Don't assume clean input.
 MANUFACTURING_DATE_KEYWORDS = ["manufactured", "date of manufacture"]
 EXPIRY_DATE_KEYWORDS = ["expiry", "best before", "use by"]
-PACKING_DATE_KEYWORDS = ["packed on", "packing date"]
+PACKING_DATE_KEYWORDS = ["packed on", "packing date", "date of packaging"]
 
 
 def match_date_type_keyword(text):

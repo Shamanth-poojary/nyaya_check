@@ -35,7 +35,129 @@ HANA2_LINES = [
     _line("Batch No.:", 244, 691, 312, 710, 0.993),
     _line("Net Contents:", 226, 950, 407, 990, 0.985),   # keyword...
     _line("600 ml", 252, 978, 401, 1033, 0.978),          # ...and value on a SEPARATE physical line
+    _line("Issal 11221331000187", 223, 719, 419, 762, 0.857),  # internal code, NOT a phone number
+    _line("11222335000034", 292, 741, 421, 769, 0.9999),       # same -- another internal code
 ]
+
+
+def test_hana2_internal_codes_not_misread_as_phone_numbers():
+    """Regression test for a real bug found in a 4-photo test: hana2.jpeg
+    has no 'Customer Care' keyword anywhere in its own text, so consumer
+    care classification fell back to a full-document scan -- which matched
+    a spurious 10-digit substring EMBEDDED inside a longer batch/expiry
+    code ('Issal 11221331000187'), because the old phone regex only
+    enforced a word boundary at the END of the match, not the start. This
+    must produce nothing, not a false 'consumer care found' with a
+    misleading uncertainFields note."""
+    r = _classify(HANA2_LINES)
+    assert r.consumerCare.found is False
+    assert not any("Phone/email found" in note for note in r.uncertainFields)
+
+
+# --- Real 6-product batch test (Everest, Dove, Haldiram's, Nandini, Bisleri, Tata Tea) ---
+# Found: column-interleaved layouts (front-panel text at similar height to
+# back-panel manufacturer text) corrupting party-block extraction; a
+# same-line "MANUFACTURED BY: X" pattern my code didn't handle; a WRONG
+# (not just missing) MRP value from a bad line-merge; and a reading-order
+# bug where a value's bbox (e.g. a batch code's digits) sorted BEFORE its
+# own keyword due to a slightly different box height.
+
+def test_everest_manufacturer_not_polluted_by_front_panel_column():
+    """'Turmeric'/'Powder' are big front-panel brand text at a similar
+    height to the back-panel manufacturer block, but a different column.
+    Naive Y-only sorting swept them into the manufacturer's address."""
+    lines = [
+        _line("MANUFACTURED & PACKED BY:", 286, 161, 433, 174),
+        _line("EVEREST", 50, 159, 194, 198),
+        _line("Everest Food Products Pvt. Ltd.", 286, 173, 430, 186),
+        _line("4/B, LB.S. Marg, Vikhroli (W).", 284, 183, 415, 198),
+        _line("Turmeric", 63, 209, 179, 237),
+        _line("Mumbai - 400 083, Maharashtra, India.", 285, 197, 455, 210),
+        _line("Powder", 70, 236, 172, 270),
+    ]
+    r = _classify(lines)
+    assert r.manufacturer.name == "Everest Food Products Pvt. Ltd."
+    assert "Turmeric" not in (r.manufacturer.address or "")
+    assert "Powder" not in (r.manufacturer.address or "")
+
+
+def test_haldirams_manufacturer_name_not_the_ingredients_header():
+    """'INGREDIENTS:' and 'MANUFACTURED & PACKED BY:' sit on the same
+    physical row in two side-by-side columns; naive sorting picked
+    'INGREDIENTS:' as the manufacturer NAME."""
+    lines = [
+        _line("INGREDIENTS:", 328, 54, 395, 66),
+        _line("MANUFACTURED & PACKED BY:", 522, 53, 681, 67),
+        _line("Potato (62%). Edible Vegetable Oil (Palmolein).", 326, 68, 516, 82),
+        _line("Heldiram Foods International Ltd.", 521, 68, 671, 82),
+    ]
+    r = _classify(lines)
+    assert r.manufacturer.name != "INGREDIENTS:"
+    assert "Heldiram Foods" in r.manufacturer.name
+
+
+def test_dove_same_line_manufacturer_name_extracted_correctly():
+    """'MANUFACTURED BY: Hindustan Unilever Ltd.' puts the name on the SAME
+    line as the header -- the old code always deferred to the next line,
+    incorrectly grabbing unrelated front-panel text ('Intense') instead."""
+    lines = [
+        _line("MANUFACTURED BY: Hiodustan Unilever Ltd.", 238, 168, 380, 181),
+        _line("Intense", 64, 176, 127, 196),
+        _line("Uni-J, Piet No. 1. Sector 1A.", 237, 179, 334, 192),
+    ]
+    r = _classify(lines)
+    assert r.manufacturer.name == "Hiodustan Unilever Ltd."
+    assert r.manufacturer.name != "Intense"
+
+
+def test_dove_mrp_not_the_net_volume_value():
+    """Real, serious bug: a bad line-merge combined 'MRPZ' with ':180 ml'
+    (a net volume from a nearby but distinct label), and naive first-number
+    extraction returned 180 as the PRICE. The real price (199.00) is on a
+    separate line. This must find 199, not silently return a wrong value."""
+    lines = [
+        _line("Net Vol.", 224, 346, 263, 364),
+        _line("MRPZ :180 ml", 224, 349, 317, 384),
+        _line(": 199.00", 275, 375, 316, 386),
+    ]
+    r = _classify(lines)
+    assert r.mrp.found is True
+    assert r.mrp.value == 199.0
+
+
+def test_nandini_mrp_found_when_keyword_and_amount_narrowly_miss_merging():
+    """'MRP' and '(incl. of all taxes) :67.00' have overlapping bboxes that
+    fall just outside the line-merge threshold -- must still find the
+    amount via windowed search, not silently return not-found."""
+    lines = [
+        _line("MANUFACTURED BY:", 298, 280, 387, 295),
+        _line("LONG LIFE", 96, 283, 176, 300),  # front-panel text, wrong column
+        _line("Kamataka Co-operative Milk", 299, 294, 413, 306),
+        _line("MRP", 303, 169, 340, 187),
+        _line("(incl. of all taxes) :67.00", 303, 169, 417, 201),
+    ]
+    r = _classify(lines)
+    assert r.mrp.found is True
+    assert r.mrp.value == 67.0
+    assert r.manufacturer.name != "LONG LIFE"
+
+
+def test_bisleri_batch_number_found_despite_value_sorting_before_keyword():
+    """'B0724's bbox starts 2px higher than 'Batch No.'s bbox (digit vs
+    letter height), which flips their order under naive ymin-only sorting
+    -- the windowed search only looks FORWARD, so it silently missed the
+    value entirely. Reading order must be robust to this."""
+    lines = [
+        _line("Bisleri MRP", 8, 211, 200, 281),
+        _line("(ncl. of all taxes) 20.00", 167, 230, 282, 261),
+        _line("Batch No.", 168, 263, 208, 278),
+        _line("B0724", 249, 261, 286, 276),
+    ]
+    r = _classify(lines)
+    assert r.batchNumber.found is True
+    assert r.batchNumber.value == "B0724"
+    assert r.mrp.found is True
+    assert r.mrp.value == 20.0
 
 
 def test_hana2_net_quantity_found_across_separate_lines():

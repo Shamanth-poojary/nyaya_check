@@ -23,7 +23,7 @@ from app.schemas.response import DocumentMeta, ExtractionResponse, empty_respons
 
 STRUCTURED_FIELD_NAMES = [
     "commodity", "manufacturer", "packer", "importer", "mrp",
-    "netQuantity", "manufacturingDate", "expiryDate", "batchNumber", "consumerCare",
+    "netQuantity", "manufacturingDate", "packingDate", "expiryDate", "batchNumber", "consumerCare",
 ]
 
 # For each structured field, which attribute(s) identify "the same value" --
@@ -32,6 +32,7 @@ CONFLICT_KEYS = {
     "mrp": ["value"],
     "batchNumber": ["value"],
     "manufacturingDate": ["day", "month", "year"],
+    "packingDate": ["day", "month", "year"],
     "expiryDate": ["day", "month", "year"],
     "netQuantity": ["normalizedValue", "normalizedUnit"],
     "commodity": ["category"],

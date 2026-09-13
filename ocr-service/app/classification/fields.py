@@ -30,8 +30,6 @@ from app.schemas.response import (
     RawOCRLine,
 )
 
-ROLE_BLOCK_MAX_LINES = 6
-
 # Lines containing these should never be treated as a net-quantity candidate,
 # even though they contain a number+unit -- they're a different field that
 # happens to share the same shape (e.g. "USP :RS 0.07ML" is unit selling
@@ -47,9 +45,50 @@ NET_QTY_SEARCH_WINDOW = 3  # lines to check after a "Net Qty"/"Net Contents" key
                            # detections (see: "Net Contents:" / "600 ml")
 
 
+READING_ORDER_ROW_TOLERANCE = 8  # pixels; deliberately tight -- this only needs to
+                                   # correct small same-row bbox-height discrepancies
+                                   # (e.g. a keyword's letter-height vs its value's
+                                   # digit-height, often just a few px), NOT group
+                                   # genuinely separate, sequential lines of text
+                                   # (which have normal line spacing, typically 15px+)
+
+
+def _reading_order(lines: List[RawOCRLine]) -> List[RawOCRLine]:
+    """Sort lines into genuine reading order: row by row (grouped by
+    vertical CENTER proximity, not raw ymin), left-to-right within each
+    row. A plain sort-by-ymin can misorder two same-row fragments when
+    their bounding boxes have slightly different heights -- e.g. a
+    keyword's letters vs. its value's digits -- which silently broke
+    windowed searches that only look FORWARD for a value (the value
+    would sort BEFORE its own keyword). Same underlying fix as the
+    line-merging row-clustering in app/ocr/normalize.py, applied here to
+    classification's reading order instead of merging.
+    """
+    def center_y(l: RawOCRLine) -> float:
+        return (l.bbox.ymin + l.bbox.ymax) / 2
+
+    by_center = sorted(lines, key=center_y)
+    rows: List[List[RawOCRLine]] = []
+    row_centers: List[float] = []
+
+    for line in by_center:
+        c = center_y(line)
+        if rows and abs(c - row_centers[-1]) <= READING_ORDER_ROW_TOLERANCE:
+            rows[-1].append(line)
+            row_centers[-1] = sum(center_y(l) for l in rows[-1]) / len(rows[-1])
+        else:
+            rows.append([line])
+            row_centers.append(c)
+
+    ordered: List[RawOCRLine] = []
+    for row in rows:
+        ordered.extend(sorted(row, key=lambda l: l.bbox.xmin))
+    return ordered
+
+
 def classify_fields(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
     """Mutates `response` in place based on `lines` (response.rawOCR)."""
-    ordered = sorted(lines, key=lambda l: l.bbox.ymin)
+    ordered = _reading_order(lines)
 
     consumed_indices: set = set()
 
@@ -112,13 +151,32 @@ def _classify_commodity(response: ExtractionResponse, lines: List[RawOCRLine]) -
         response.commodity.confidence = confidence
 
 
+MRP_SEARCH_WINDOW = 3  # lines to check after an 'MRP' keyword line for its
+                       # amount -- real labels sometimes leave label and
+                       # value on separate lines that don't quite merge
+                       # (narrowly missed geometry, wrapped text, etc.)
+
+
 def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
     candidates = []
-    for line in lines:
+    for i, line in enumerate(lines):
         hit = regex.find_mrp(line.text)
         if hit:
             value, tax_included = hit
             candidates.append((value, tax_included, line))
+            continue
+
+        # Keyword present but no valid amount on THIS line (either no
+        # number at all, or the only number found was rejected as a
+        # quantity) -- check nearby lines before giving up.
+        if regex.is_mrp_line(line.text):
+            for j in range(i + 1, min(i + 1 + MRP_SEARCH_WINDOW, len(lines))):
+                candidate_line = lines[j]
+                bare_value = regex.find_bare_amount(candidate_line.text)
+                if bare_value is not None:
+                    tax_included = bool(regex.TAX_INCLUDED_PATTERN.search(line.text + " " + candidate_line.text)) or None
+                    candidates.append((bare_value, tax_included, candidate_line))
+                    break
 
     if not candidates:
         return
@@ -204,12 +262,17 @@ def _classify_dates(response: ExtractionResponse, lines: List[RawOCRLine]) -> No
 
         if date_type == "expiry" and not response.expiryDate.found:
             response.expiryDate = field
-        elif date_type != "expiry" and not response.manufacturingDate.found:
+        elif date_type == "packing" and not response.packingDate.found:
+            response.packingDate = field
+        elif date_type not in ("expiry", "packing") and not response.manufacturingDate.found:
             response.manufacturingDate = field
 
 
+BATCH_SEARCH_WINDOW = 3  # lines to check after a 'Batch No' keyword line
+
+
 def _classify_batch_number(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
-    for line in lines:
+    for i, line in enumerate(lines):
         batch = regex.find_batch_number(line.text)
         if batch:
             response.batchNumber = BatchNumber(
@@ -217,18 +280,65 @@ def _classify_batch_number(response: ExtractionResponse, lines: List[RawOCRLine]
             )
             return
 
+        if regex.is_batch_line(line.text):
+            for j in range(i + 1, min(i + 1 + BATCH_SEARCH_WINDOW, len(lines))):
+                candidate_line = lines[j]
+                bare_batch = regex.find_bare_batch_value(candidate_line.text)
+                if bare_batch:
+                    response.batchNumber = BatchNumber(
+                        value=bare_batch, raw=candidate_line.text, bbox=candidate_line.bbox,
+                        found=True, confidence=candidate_line.confidence,
+                    )
+                    return
+
+
+ROLE_BLOCK_MAX_LINES = 10  # generous window since column-filtering below can
+                            # skip several cross-column lines before finding
+                            # the next genuine same-column address line
+COLUMN_OVERLAP_MIN_PX = 1   # any horizontal overlap at all counts as "same column"
+
+
+def _horizontal_overlap(a: RawOCRLine, b: RawOCRLine) -> int:
+    left = max(a.bbox.xmin, b.bbox.xmin)
+    right = min(a.bbox.xmax, b.bbox.xmax)
+    return max(0, right - left)
+
+
+# Role-header phrasings where the entity name commonly follows ON THE SAME
+# LINE ("MANUFACTURED BY: Hindustan Unilever Ltd.") rather than starting on
+# the next line. Used to strip the header text and keep only the name.
+ROLE_HEADER_PATTERN = re.compile(
+    r"(?:manufactured\s*(?:&|and)?\s*(?:packed|marketed)?\s*by|packed\s*by|imported\s*by|marketed\s*by)\s*[:\-]?\s*",
+    re.IGNORECASE,
+)
+
 
 def _classify_party_blocks(
     response: ExtractionResponse, lines: List[RawOCRLine], consumed_indices: set
 ) -> None:
     for i, line in enumerate(lines):
-        role = keywords.match_role_keyword(line.text)
-        if not role:
+        roles = keywords.match_role_keyword(line.text)
+        if not roles:
             continue
+
+        # Some labels put the entity name on the SAME line as the header
+        # ("MANUFACTURED BY: Hindustan Unilever Ltd."). Strip the header
+        # text; whatever remains (if anything) is the name, and address
+        # accumulation starts from the next line either way.
+        same_line_name = ROLE_HEADER_PATTERN.sub("", line.text, count=1).strip()
+        same_line_name = same_line_name if same_line_name and same_line_name != line.text else None
 
         block_lines = []
         for j in range(i + 1, min(i + 1 + ROLE_BLOCK_MAX_LINES, len(lines))):
             candidate = lines[j]
+            # Real labels often have a front-panel column (brand name,
+            # tagline) sitting at a similar height to the back-panel
+            # manufacturer/address column. Sorting by Y alone interleaves
+            # them; skip anything that doesn't horizontally overlap the
+            # keyword line's own column, rather than blindly accumulating
+            # whatever comes next in reading order.
+            if _horizontal_overlap(line, candidate) < COLUMN_OVERLAP_MIN_PX:
+                continue
             if keywords.is_consumer_care_line(candidate.text):
                 break
             if regex.find_phones(candidate.text) or regex.find_email(candidate.text):
@@ -238,31 +348,38 @@ def _classify_party_blocks(
             block_lines.append(candidate)
             if regex.find_pin_code(candidate.text):
                 break  # PIN code line is typically the last address line
+            if len(block_lines) >= 4:
+                break  # enough address lines gathered; stop before drifting into unrelated content
 
-        if not block_lines:
+        if not block_lines and not same_line_name:
             continue
 
-        name = block_lines[0].text
-        address = ", ".join(l.text for l in block_lines[1:]) if len(block_lines) > 1 else None
-        avg_confidence = sum(l.confidence for l in [line] + block_lines) / (1 + len(block_lines))
+        if same_line_name:
+            name = same_line_name
+            address = ", ".join(l.text for l in block_lines) if block_lines else None
+            contributing = [line] + block_lines
+        else:
+            name = block_lines[0].text
+            address = ", ".join(l.text for l in block_lines[1:]) if len(block_lines) > 1 else None
+            contributing = [line] + block_lines
 
-        party = PartyInfo(
-            name=name,
-            address=address,
-            role=role,
-            found=True,
-            confidence=avg_confidence,
-        )
+        avg_confidence = sum(l.confidence for l in contributing) / len(contributing)
 
-        # "Manufactured & Marketed by" etc. -- assign to manufacturer by
-        # default since it's the more legally load-bearing mandatory field;
-        # packer/importer only get their own explicit keywords.
-        if role in ("manufacturer", "marketer") and not response.manufacturer.found:
-            response.manufacturer = party
-        elif role == "packer" and not response.packer.found:
-            response.packer = party
-        elif role == "importer" and not response.importer.found:
-            response.importer = party
+        # Combined phrasing ("Manufactured & Packed by X") means the SAME
+        # entity fills every listed role -- populate each applicable field
+        # with identical party info rather than picking just one and
+        # silently dropping the rest.
+        combined_role_label = "/".join(roles)
+        for role in roles:
+            party = PartyInfo(
+                name=name, address=address, role=combined_role_label, found=True, confidence=avg_confidence
+            )
+            if role in ("manufacturer", "marketer") and not response.manufacturer.found:
+                response.manufacturer = party
+            elif role == "packer" and not response.packer.found:
+                response.packer = party
+            elif role == "importer" and not response.importer.found:
+                response.importer = party
 
 
 import re as _re

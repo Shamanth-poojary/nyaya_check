@@ -31,7 +31,7 @@ MAX_FILE_SIZE_MB = 15
 # came from, once classify_fields has populated them.
 STRUCTURED_FIELD_NAMES = [
     "commodity", "manufacturer", "packer", "importer", "mrp",
-    "netQuantity", "manufacturingDate", "expiryDate", "batchNumber", "consumerCare",
+    "netQuantity", "manufacturingDate", "packingDate", "expiryDate", "batchNumber", "consumerCare",
 ]
 
 

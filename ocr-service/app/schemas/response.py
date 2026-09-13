@@ -158,6 +158,7 @@ class ExtractionResponse(BaseModel):
     mrp: MRP = Field(default_factory=MRP)
     netQuantity: NetQuantity = Field(default_factory=NetQuantity)
     manufacturingDate: DateField = Field(default_factory=DateField)
+    packingDate: DateField = Field(default_factory=DateField)  # "Date of Packaging" -- distinct from mfg date, very common on real labels
     expiryDate: DateField = Field(default_factory=DateField)
     batchNumber: BatchNumber = Field(default_factory=BatchNumber)
     dimensions: List[Dimension] = Field(default_factory=list)
