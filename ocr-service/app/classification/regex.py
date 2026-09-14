@@ -18,7 +18,7 @@ from app.classification.keywords import _fuzzy_word_in, _levenshtein
 # or similar, and requiring the literal string in one combined regex breaks
 # on exactly that kind of noise.
 AMOUNT_PATTERN = re.compile(
-    r"[:\-]?\s*(?:RS\.?|₹|INR)?\s*([\d,]+(?:\.\d{1,2})?)\s*/?"
+    r"[:\-]?\s*(?:RS\.?|₹|INR)?\s*(\d[\d,]*(?:\.\d{1,2})?)\s*/?"
 )
 
 # Guards against exactly the failure seen on a real label: a line-merge
@@ -28,7 +28,7 @@ AMOUNT_PATTERN = re.compile(
 # one. If the number found is immediately followed by a recognized unit,
 # it's a quantity, not a price, regardless of what keyword shares the line.
 UNIT_SUFFIX_PATTERN = re.compile(
-    r"^\s*(g|gm|gms|gram|grams|kg|kgs|ml|mls|l|ltr|ltrs|litre|litres|liter|liters|mg|n|no|nos|pcs|pieces|piece|count|units?|u|cm|mm|m|mtr|in)\b",
+    r"^\s*(g|gm|gms|gram|grams|kg|kgs|ml|mls|l|ltr|ltrs|litre|litres|liter|liters|mg|n|no|nos|pcs|pieces|piece|count|units?|u|cm|mm|m|mtr|in|kcal|cal|kj)\b",
     re.IGNORECASE,
 )
 
@@ -43,7 +43,13 @@ def find_bare_amount(text: str) -> Optional[float]:
         remainder = text[match.end():]
         if UNIT_SUFFIX_PATTERN.match(remainder):
             continue
-        return float(match.group(1).replace(",", ""))
+        raw_num = match.group(1).replace(",", "").rstrip(".")
+        if not raw_num:
+            continue
+        try:
+            return float(raw_num)
+        except ValueError:
+            continue
     return None
 
 
@@ -102,7 +108,13 @@ def find_mrp(text: str) -> Optional[Tuple[float, bool]]:
         remainder = text[match.end():]
         if UNIT_SUFFIX_PATTERN.match(remainder):
             continue  # this number is a quantity (e.g. "180 ml"), not the price
-        value = float(match.group(1).replace(",", ""))
+        raw_num = match.group(1).replace(",", "").rstrip(".")
+        if not raw_num:
+            continue
+        try:
+            value = float(raw_num)
+        except ValueError:
+            continue
         tax_included = bool(TAX_INCLUDED_PATTERN.search(text)) or None
         return value, tax_included
     return None

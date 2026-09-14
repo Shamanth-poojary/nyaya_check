@@ -1381,3 +1381,108 @@ def test_aashirvaad_real_photo_batch_number_not_atta():
         f"Expected batchNumber='A4G0724' but got {r.batchNumber.value!r} -- "
         "'ATTA' from adjacent variant column must not be misidentified as batch code"
     )
+
+
+def test_hana2_full_ocr_scan_net_quantity_extracted():
+    """Regression test for hana2.jpeg live OCR scan:
+    Contains 36 OCR lines including 'dietary allowance,' (trailing comma without digits)
+    and separate-line net quantity 'Net Contents:' at y=951 followed by '600 ml' at y=978.
+    Ensures:
+    1. Trailing commas in text do not trigger ValueError in AMOUNT_PATTERN/find_bare_amount
+    2. Net quantity '600 ml' is correctly extracted with value=600.0, unit='ml', type='volume'.
+    """
+    lines = [
+        _line("CAN", 61, 291, 125, 350, 0.98),
+        _line("I", 86, 360, 104, 381, 0.28),
+        _line("Ingredients:", 271, 382, 347, 400, 0.99),
+        _line("Carbonated Water, Fresh Lemon,", 212, 399, 400, 427, 0.97),
+        _line("Sugar, Salt, Acidity Regulator", 225, 415, 390, 440, 0.94),
+        _line("C", 193, 429, 418, 459, 0.39),
+        _line("(Sodium Benzonate E- 211)", 231, 449, 388, 468, 0.96),
+        _line("ZES", 62, 433, 142, 506, 0.98),
+        _line("per100ml(ApproximateValue", 206, 481, 356, 501, 0.94),
+        _line("Nutritionalinformation Per100ml", 225, 473, 410, 496, 0.95),
+        _line("Energy", 210, 505, 252, 525, 0.99),
+        _line("Protein", 213, 522, 252, 536, 0.99),
+        _line("52.44 Kco", 361, 503, 414, 524, 0.94),
+        _line("Fat Carbohydrates", 215, 537, 289, 563, 0.99),
+        _line("13.11", 363, 548, 391, 566, 0.99),
+        _line("percentage of nutrition calculated", 223, 596, 403, 617, 0.99),
+        _line("dietary allowance,", 224, 587, 321, 603, 0.97),
+        _line("**RDA Stands for recommended", 226, 578, 394, 591, 0.96),
+        _line("on the basis of 2000 kcal energy", 223, 610, 395, 629, 0.98),
+        _line("MRP:", 243, 635, 290, 657, 0.99),
+        _line("(Incl of all taxes) See Neck", 245, 649, 389, 678, 0.97),
+        _line("Mfg. Date :", 244, 672, 312, 690, 0.95),
+        _line("Batch No.:", 244, 692, 313, 709, 0.97),
+        _line("Issal 11221331000187", 223, 719, 419, 762, 0.87),
+        _line("11222335000034", 292, 741, 421, 769, 0.99),
+        _line("from the date of manufacture", 212, 788, 421, 814, 0.99),
+        _line("Best before 180 Days", 242, 774, 393, 797, 0.99),
+        _line("Keep under refrigeration", 230, 803, 406, 831, 0.99),
+        _line("Store in a cool place", 245, 820, 394, 844, 0.99),
+        _line("Avoid direct sunlight", 246, 834, 393, 861, 0.99),
+        _line("RECYCLABLE CITY CLEAN", 259, 891, 383, 911, 0.75),
+        _line("KEEP YOUR", 329, 884, 381, 900, 0.97),
+        _line("100t", 477, 891, 525, 941, 0.86),
+        _line("VITAMIN C", 215, 906, 420, 959, 0.84),
+        _line("Net Contents:", 226, 951, 406, 989, 0.99),
+        _line("600 ml", 251, 978, 400, 1033, 0.99),
+    ]
+    r = _classify(lines)
+    assert r.netQuantity.found is True
+    assert r.netQuantity.value == 600.0
+    assert r.netQuantity.unit == "ml"
+    assert r.netQuantity.quantityType == "volume"
+
+
+def test_hana_multi_photo_merge_mrp_is_40_not_2000():
+    """Regression test for multi-photo bottle scan:
+    - hana1.jpeg: neck photo showing 'MRP :RS 40'
+    - hana2.jpeg: body label showing 'MRP: (Incl of all taxes) See Neck' and '2000 kcal energy'
+    Ensures that:
+    1. hana2 does not extract '2000' as an MRP (neither via 'See Neck' nor 'kcal' unit)
+    2. Merged result picks the genuine MRP from the neck photo (value=40.0) with zero false conflict.
+    """
+    from app.classification.merge import merge_extraction_results
+    from app.pipeline import _tag_source_image
+
+    hana1_lines = [
+        _line("B.NO:MNGMARDYI14", 255, 701, 476, 736, 0.94),
+        _line("HFD :26/03/2026", 254, 725, 468, 764, 0.96),
+        _line("EXP :26 /09/2026", 257, 751, 481, 788, 0.93),
+        _line("MRP :RS 40", 257, 777, 423, 816, 0.88),
+        _line("USP :RS 0.07ML", 261, 804, 458, 837, 0.91),
+    ]
+    r1 = empty_response("hana1.jpeg", 720, 1280)
+    for l in hana1_lines:
+        l.sourceImage = "hana1.jpeg"
+    r1.rawOCR = hana1_lines
+    classify_fields(r1, hana1_lines)
+    _tag_source_image(r1, "hana1.jpeg")
+
+    hana2_lines = [
+        _line("on the basis of 2000 kcal energy", 223, 610, 395, 629, 0.98),
+        _line("MRP:", 243, 635, 290, 657, 0.99),
+        _line("(Incl of all taxes) See Neck", 245, 649, 389, 678, 0.97),
+        _line("Net Contents:", 226, 951, 406, 989, 0.99),
+        _line("600 ml", 251, 978, 400, 1033, 0.99),
+    ]
+    r2 = empty_response("hana2.jpeg", 720, 1280)
+    for l in hana2_lines:
+        l.sourceImage = "hana2.jpeg"
+    r2.rawOCR = hana2_lines
+    classify_fields(r2, hana2_lines)
+    _tag_source_image(r2, "hana2.jpeg")
+
+    assert r2.mrp.found is False, "hana2 has no MRP on body label (defers to neck, 2000 kcal is nutrition)"
+    assert r1.mrp.found is True and r1.mrp.value == 40.0
+
+    merged = merge_extraction_results([r1, r2])
+    assert merged.mrp.found is True
+    assert merged.mrp.value == 40.0
+    assert merged.netQuantity.found is True
+    assert merged.netQuantity.value == 600.0
+    assert not any("Conflicting 'mrp'" in u for u in merged.uncertainFields)
+
+

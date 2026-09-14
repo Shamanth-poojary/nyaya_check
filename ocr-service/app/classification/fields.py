@@ -159,14 +159,25 @@ MRP_SEARCH_WINDOW = 3  # lines to check after an 'MRP' keyword line for its
                        # (narrowly missed geometry, wrapped text, etc.)
 
 
+SEE_PRINTED_ELSEWHERE_PATTERN = re.compile(
+    r"\bsee\s+(?:neck|cap|lid|crown|bottom|pouch|pkg|pack|below|reverse|side)\b",
+    re.IGNORECASE,
+)
+
+
 def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
+    # A single photo can have multiple MRP-like lines (e.g. front-of-pack
+    # promotional callout vs back-of-pack compliance block). We score ALL
+    # matches and keep the highest-confidence one, rather than returning on
+    # the first match we encounter.
     candidates = []
     for i, line in enumerate(lines):
-        hit = regex.find_mrp(line.text)
-        if hit:
-            value, tax_included = hit
-            if not tax_included and i + 1 < len(lines):
-                if regex.TAX_INCLUDED_PATTERN.search(lines[i + 1].text):
+        result = regex.find_mrp(line.text)
+        if result is not None:
+            value, tax_included = result
+            if tax_included is None and i + 1 < len(lines):
+                next_line = lines[i + 1]
+                if regex.TAX_INCLUDED_PATTERN.search(next_line.text):
                     tax_included = True
             candidates.append((value, tax_included, line))
             continue
@@ -178,6 +189,14 @@ def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None
         # a low-confidence OCR artifact (e.g. a garbled decorative
         # fragment) can appear before the real, high-confidence value.
         if regex.is_mrp_line(line.text):
+            # If this line or the immediate next line explicitly defers to another location
+            # (e.g. "(Incl of all taxes) See Neck", "MRP: See Cap"), then the price is
+            # intentionally printed on another part of the container. Do not grab random numbers
+            # from surrounding nutrition/legal text on this image.
+            next_text = lines[i + 1].text if i + 1 < len(lines) else ""
+            if SEE_PRINTED_ELSEWHERE_PATTERN.search(line.text) or SEE_PRINTED_ELSEWHERE_PATTERN.search(next_text):
+                continue
+
             window_candidates = []
             # Forward window: most common case (value below keyword).
             for j in range(i + 1, min(i + 1 + MRP_SEARCH_WINDOW, len(lines))):
@@ -195,6 +214,8 @@ def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None
             if not window_candidates:
                 for j in range(max(0, i - MRP_SEARCH_WINDOW), i):
                     candidate_line = lines[j]
+                    if not (_is_same_row(line, candidate_line) or _is_same_column(line, candidate_line)):
+                        continue
                     bare_value = regex.find_bare_amount(candidate_line.text)
                     if bare_value is not None:
                         window_candidates.append((bare_value, candidate_line))
