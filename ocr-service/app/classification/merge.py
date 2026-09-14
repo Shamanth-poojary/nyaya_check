@@ -36,6 +36,9 @@ CONFLICT_KEYS = {
     "expiryDate": ["day", "month", "year"],
     "netQuantity": ["normalizedValue", "normalizedUnit"],
     "commodity": ["category"],
+    "manufacturer": ["name"],
+    "packer": ["name"],
+    "importer": ["name"],
 }
 
 

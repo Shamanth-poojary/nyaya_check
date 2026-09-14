@@ -923,3 +923,461 @@ def test_haldirams_full_field_extraction():
     assert r.packingDate.found and r.packingDate.month == 7 and r.packingDate.year == 2024
     assert r.expiryDate.found and r.expiryDate.month == 11 and r.expiryDate.year == 2024
     assert r.manufacturer.found and "Haldiram" in r.manufacturer.name
+
+
+# ============================================================================
+# Phase 01: Failure Patterns 1 to 8 Explicit Regression Tests
+# ============================================================================
+
+def test_pattern1_party_block_rejects_adjacent_column_text_with_no_center_overlap():
+    """Pattern 1: Column interleaving.
+    Real product labels often place a front-panel column (e.g. brand name,
+    product tagline) right next to a back-panel manufacturer address column
+    at overlapping vertical heights. Sorting purely by Y-position interleaves
+    lines from unrelated columns.
+    Guards that _is_same_column and _classify_party_blocks reject lines from an
+    adjacent column whose horizontal center does not fall within the column's
+    bounding box.
+    """
+    lines = [
+        _line("MANUFACTURED BY:", 300, 100, 500, 120),
+        _line("PREMIUM QUALITY PRODUCT", 20, 105, 250, 125),   # column 1 (left)
+        _line("Acme Consumer Goods Pvt Ltd", 300, 125, 520, 145), # column 2 (right)
+        _line("PURE & NATURAL", 20, 130, 220, 150),              # column 1 (left)
+        _line("Plot 12, GIDC Estate, Ahmedabad - 382445, Gujarat.", 300, 150, 560, 170),
+    ]
+    r = _classify(lines)
+    assert r.manufacturer.found is True
+    assert r.manufacturer.name == "Acme Consumer Goods Pvt Ltd"
+    addr = r.manufacturer.address or ""
+    assert "PURE" not in addr
+    assert "PREMIUM" not in addr
+    assert "Plot 12" in addr
+
+
+def test_pattern2_reading_order_preserves_left_to_right_when_right_box_top_edge_is_higher():
+    """Pattern 2: Reading order is not just sort by ymin.
+    Two text fragments on the same visual row often have bounding boxes of
+    different heights (e.g. a keyword's lowercase letters vs. a value's taller
+    digits or capital letters). Naive ymin sorting causes the right-hand value
+    to sort BEFORE the left-hand keyword, breaking forward-only searches.
+    Guards that _reading_order clusters by vertical center and preserves left-to-right order.
+    """
+    from app.classification.fields import _reading_order
+    # Left box: keyword "Batch No." with ymin=105, ymax=125 (height 20, center 115)
+    # Right box: value "B123" with ymin=101, ymax=127 (height 26, center 114)
+    # Under naive ymin sorting, right box (ymin=101) would sort BEFORE left box (ymin=105).
+    left = _line("Batch No.", 50, 105, 120, 125)
+    right = _line("B123", 130, 101, 180, 127)
+
+    ordered = _reading_order([right, left])
+    assert ordered[0].text == "Batch No."
+    assert ordered[1].text == "B123"
+
+
+def test_pattern3_windowed_search_picks_highest_confidence_candidate():
+    """Pattern 3: Keyword and value land on separate, unmerged lines.
+    Windowed search in both directions must collect all candidates and pick the
+    HIGHEST CONFIDENCE candidate, never the first match.
+    Guards against returning low-confidence OCR noise fragments instead of the
+    true value further in the search window.
+    """
+    lines = [
+        _line("MRP:", 100, 100, 150, 120, confidence=0.99),
+        _line("12", 100, 125, 130, 140, confidence=0.40),      # noise candidate (low conf)
+        _line("Rs. 250.00", 100, 145, 180, 165, confidence=0.96), # true candidate (high conf)
+    ]
+    r = _classify(lines)
+    assert r.mrp.found is True
+    assert r.mrp.value == 250.0
+
+
+def test_pattern4_fuzzy_keyword_matching_rejects_shorter_words():
+    """Pattern 4: Fuzzy keyword matching on short words is dangerous.
+    A short word (e.g. 'MP' from 'SUPERIOR MP ATTA') is 1 edit distance from 'MRP',
+    but reaching it via deletion is not an OCR noise pattern.
+    Guards that _fuzzy_word_in only matches candidate words at least as long as
+    the target keyword.
+    """
+    from app.classification.keywords import _fuzzy_word_in
+    # "MP" is length 2, "mrp" is length 3. Must NOT match.
+    assert not _fuzzy_word_in("SUPERIOR MP ATTA", "mrp")
+    # "MRE" is length 3, 1 substitution from "mrp". MUST match.
+    assert _fuzzy_word_in("MRE 45.00", "mrp")
+    # "MRRP" is length 4, 1 insertion from "mrp". MUST match.
+    assert _fuzzy_word_in("MRRP 45.00", "mrp")
+
+
+def test_pattern5_mrp_rejects_glued_digits_and_unit_suffixes():
+    """Pattern 5: A number is not automatically the field you're looking for.
+    MRP extraction must reject any number immediately followed by a unit (e.g. '180 ml'
+    or '50 g' is a quantity, not a price) and any digit glued directly onto the keyword
+    ('MRP7' is OCR noise, not Rs 7).
+    """
+    from app.classification.regex import find_mrp
+    assert find_mrp("MRP: 250 ml") is None
+    assert find_mrp("MRP7") is None
+    # Real price with separator and currency
+    res = find_mrp("MRP: Rs 75.00")
+    assert res is not None
+    assert res[0] == 75.0
+
+
+def test_pattern6_phone_pattern_rejects_digit_run_embedded_in_longer_number():
+    """Pattern 6: Phone-number-shaped substrings hide inside longer digit runs.
+    Barcode numbers (12-14 digits) and FSSAI license codes (14 digits) contain 10-digit
+    consecutive runs.
+    Guards that PHONE_PATTERN uses lookbehind and lookahead to reject matches
+    embedded inside longer uninterrupted digit runs.
+    """
+    from app.classification.regex import find_phones
+    # 14-digit FSSAI number containing 10-digit substring
+    fssai = "Lic. No. 10014011001234"
+    assert find_phones(fssai) == []
+    # 13-digit EAN barcode
+    barcode = "8901030912345"
+    assert find_phones(barcode) == []
+    # Real 10-digit mobile number
+    real_mobile = "Customer Care: +91 98444 88117"
+    assert len(find_phones(real_mobile)) == 1
+
+
+def test_pattern7_ingredient_list_excluded_from_commodity_classification():
+    """Pattern 7: Ingredient lists share vocabulary with category keywords.
+    A beverage or snack listing 'Salt', 'Sugar', or 'Honey' as ingredients must NOT
+    be classified into category 'Salt' or 'Sugar'.
+    Guards that _classify_commodity excludes text between an 'Ingredients:' header
+    and the next section boundary.
+    """
+    lines = [
+        _line("Refreshing Fruit Beverage", 100, 50, 400, 80),
+        _line("INGREDIENTS:", 100, 100, 200, 120),
+        _line("Water, Sugar, Salt, Citric Acid, Fruit Pulp.", 100, 125, 450, 145),
+        _line("NET QUANTITY: 500 ml", 100, 200, 300, 220),
+        _line("MRP: Rs 40.00", 100, 230, 250, 250),
+    ]
+    r = _classify(lines)
+    assert r.commodity.found is True
+    assert r.commodity.category == "Beverage"
+    assert r.commodity.category != "Salt"
+    assert r.commodity.category != "Sugar"
+
+
+def test_pattern8_regression_mrp_windowed_search_real_noise():
+    """Pattern 8: Every fix needs a regression test using exact real data.
+    Guards against the regression where the MRP windowed search selected the
+    first candidate in the window (a low-confidence garbled fragment) rather
+    than the best candidate by confidence.
+    """
+    lines = [
+        _line("MRP", 100, 100, 140, 120, confidence=0.99),
+        _line("80 I", 150, 105, 190, 120, confidence=0.35),       # first hit in window, bad confidence
+        _line("Rs. 150.00", 100, 130, 200, 150, confidence=0.98), # real value, high confidence
+    ]
+    r = _classify(lines)
+    assert r.mrp.found is True
+    assert r.mrp.value == 150.0
+
+
+# ============================================================================
+# Phase 01: Coverage Gaps & Multi-Category Realistic Tests
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Category 1: Ready-made Garment (Raymond Formal Shirt Packaging)
+# Exercises: count-based netQuantity ("1 N"), dimensions ("38 cm x 42 cm x 3 cm"
+# and "Size: 40 cm"), garment commodity category.
+# ---------------------------------------------------------------------------
+RAYMOND_GARMENT_LINES = [
+    _line("RAYMOND", 50, 50, 400, 80, 0.99),
+    _line("CONTEMPORARY FIT FORMAL SHIRT", 50, 85, 450, 105, 0.98),
+    _line("100% COTTON APPAREL", 50, 110, 350, 130, 0.97),
+    _line("MANUFACTURED & PACKED BY:", 50, 160, 450, 180, 0.99),
+    _line("Raymond Limited", 50, 185, 300, 205, 0.98),
+    _line("Jekegram, Pokhran Road No. 1,", 50, 210, 400, 230, 0.97),
+    _line("Thane - 400 606, Maharashtra, India.", 50, 235, 450, 255, 0.96),
+    _line("FOR CONSUMER COMPLAINTS:", 50, 280, 400, 300, 0.99),
+    _line("Customer Care: 1800 222 001", 50, 305, 380, 325, 0.98),
+    _line("Email: customercare@raymond.in", 50, 330, 420, 350, 0.98),
+    _line("Net Quantity : 1 N", 50, 400, 300, 425, 0.99),
+    _line("Size : 40 cm", 50, 430, 250, 455, 0.98),
+    _line("Dimensions: 38 cm x 42 cm x 3 cm", 50, 460, 450, 485, 0.97),
+    _line("MRP Rs      : 1,499.00", 50, 490, 350, 515, 0.99),
+    _line("(incl. of all taxes)", 50, 518, 300, 535, 0.96),
+    _line("Batch No.   : RMD2024", 50, 540, 320, 560, 0.97),
+    _line("Date of Packaging : 12 AUG 2024", 50, 565, 400, 585, 0.98),
+]
+
+
+def test_raymond_garment_net_quantity_count_extracted():
+    """Legal Metrology Rule 13: commodities sold by number must declare
+    quantity as 'N' or 'U' or 'Number'. Raymond shirt declares 'Net Quantity : 1 N'.
+    Must be extracted as number quantity type, value 1.0, unit 'n'.
+    """
+    r = _classify(RAYMOND_GARMENT_LINES)
+    assert r.netQuantity.found is True
+    assert r.netQuantity.value == 1.0
+    assert r.netQuantity.unit == "n"
+    assert r.netQuantity.quantityType == "number"
+
+
+def test_raymond_garment_dimensions_extracted():
+    """Garment and textile packaging declares dimensions.
+    Raymond fixture contains both 'Size : 40 cm' and 'Dimensions: 38 cm x 42 cm x 3 cm'.
+    Both should be collected, providing length=38.0 cm, width=42.0 cm, height=3.0 cm, and size=40.0 cm.
+    """
+    r = _classify(RAYMOND_GARMENT_LINES)
+    assert len(r.dimensions) == 4
+    labels = [d.label for d in r.dimensions]
+    values = [d.value for d in r.dimensions]
+    units = [d.unit for d in r.dimensions]
+    assert "length" in labels
+    assert "size" in labels
+    assert 38.0 in values
+    assert 42.0 in values
+    assert 3.0 in values
+    assert 40.0 in values
+    assert all(u == "cm" for u in units)
+
+
+def test_raymond_garment_commodity_category():
+    """Apparel / Garment text must classify into Ready-made Garment."""
+    r = _classify(RAYMOND_GARMENT_LINES)
+    assert r.commodity.found is True
+    assert r.commodity.category == "Ready-made Garment"
+
+
+def test_raymond_full_field_extraction():
+    """Comprehensive check across all fields for garment packaging."""
+    r = _classify(RAYMOND_GARMENT_LINES)
+    assert r.mrp.found and r.mrp.value == 1499.0
+    assert r.mrp.taxIncluded is True
+    assert r.batchNumber.found and r.batchNumber.value == "RMD2024"
+    assert r.packingDate.found and r.packingDate.month == 8 and r.packingDate.year == 2024
+    assert r.manufacturer.found and "Raymond" in r.manufacturer.name
+    assert r.consumerCare.found and "1800 222 001" in r.consumerCare.phone
+
+
+# ---------------------------------------------------------------------------
+# Category 2: Imported Hardware / Power Tool (Bosch Packaging)
+# Exercises: DISTINCT manufacturer, importer, and packer entities on the SAME
+# product label, '1 U' net quantity, toll-free consumer care.
+# ---------------------------------------------------------------------------
+BOSCH_IMPORTED_LINES = [
+    _line("BOSCH PROFESSIONAL POWER TOOLS", 50, 40, 500, 65, 0.99),
+    _line("Cordless Drill Driver GSR 120-LI", 50, 70, 450, 92, 0.98),
+    _line("MANUFACTURED IN GERMANY BY:", 50, 120, 450, 140, 0.99),
+    _line("Robert Bosch Power Tools GmbH", 50, 142, 420, 162, 0.98),
+    _line("Max-Lang-Strasse 40-46, 70771 Leinfelden-Echterdingen, Germany.", 50, 164, 550, 184, 0.96),
+    _line("IMPORTED & MARKETED BY:", 50, 210, 420, 230, 0.99),
+    _line("Bosch Limited", 50, 232, 250, 252, 0.98),
+    _line("Post Box No. 3000, Hosur Road, Adugodi,", 50, 254, 480, 274, 0.97),
+    _line("Bengaluru - 560 030, Karnataka, India.", 50, 276, 460, 296, 0.96),
+    _line("PACKED BY:", 50, 320, 250, 340, 0.99),
+    _line("Transworld Logistics India Pvt. Ltd.", 50, 342, 450, 362, 0.98),
+    _line("Plot 18, Bommasandra Industrial Area,", 50, 364, 460, 384, 0.97),
+    _line("Bengaluru - 560 099, Karnataka, India.", 50, 386, 450, 406, 0.96),
+    _line("FOR CONSUMER COMPLAINTS CONTACT:", 50, 430, 480, 450, 0.99),
+    _line("Toll Free: 1800 425 8665 | boschtools@in.bosch.com", 50, 452, 520, 472, 0.98),
+    _line("Net Qty: 1 U", 50, 500, 250, 525, 0.99),
+    _line("Dimensions: 35.5 cm x 20 cm x 11 cm", 50, 530, 480, 555, 0.98),
+    _line("MRP: Rs. 4,850.00", 50, 560, 300, 582, 0.99),
+    _line("(Inclusive of all taxes)", 50, 584, 320, 602, 0.97),
+    _line("Month & Year of Import: 08/2024", 50, 610, 420, 630, 0.98),
+    _line("Batch No: BS2024G", 50, 635, 300, 655, 0.97),
+]
+
+
+def test_bosch_distinct_manufacturer_packer_importer():
+    """Real Indian imported goods compliance requirement (Rule 6(1)(a)):
+    When a product is manufactured overseas, the label must name:
+    1. The overseas Manufacturer (Robert Bosch Power Tools GmbH, Germany)
+    2. The Indian Importer (Bosch Limited, Bengaluru)
+    3. The Packer who packaged the imported unit (Transworld Logistics, Bengaluru)
+    Before this hardening phase, the classifier only had coverage for single/combined
+    entities. This test confirms all three distinct parties are extracted simultaneously.
+    """
+    r = _classify(BOSCH_IMPORTED_LINES)
+
+    # Manufacturer: foreign company
+    assert r.manufacturer.found is True
+    assert "Robert Bosch" in r.manufacturer.name
+    assert "Germany" in r.manufacturer.address
+
+    # Importer: Indian entity
+    assert r.importer.found is True
+    assert "Bosch Limited" in r.importer.name
+    assert "560030" in r.importer.address or "560 030" in r.importer.address
+
+    # Packer: Indian packaging facility
+    assert r.packer.found is True
+    assert "Transworld Logistics" in r.packer.name
+    assert "560099" in r.packer.address or "560 099" in r.packer.address
+
+    # Verify they are separate entities
+    assert r.manufacturer.name != r.importer.name
+    assert r.importer.name != r.packer.name
+
+
+def test_bosch_hardware_net_quantity_unit():
+    """Hardware net quantity declared as '1 U' (units)."""
+    r = _classify(BOSCH_IMPORTED_LINES)
+    assert r.netQuantity.found is True
+    assert r.netQuantity.value == 1.0
+    assert r.netQuantity.quantityType == "number"
+
+
+def test_bosch_hardware_dimensions():
+    """Dimensions declared as '35.5 cm x 20 cm x 11 cm'."""
+    r = _classify(BOSCH_IMPORTED_LINES)
+    assert len(r.dimensions) == 3
+    assert r.dimensions[0].value == 35.5
+    assert r.dimensions[1].value == 20.0
+    assert r.dimensions[2].value == 11.0
+
+
+def test_bosch_full_field_extraction():
+    """Comprehensive check of imported tool packaging."""
+    r = _classify(BOSCH_IMPORTED_LINES)
+    assert r.mrp.found and r.mrp.value == 4850.0
+    assert r.batchNumber.found and r.batchNumber.value == "BS2024G"
+    assert r.consumerCare.found and "1800 425 8665" in r.consumerCare.phone
+    assert r.consumerCare.email == "boschtools@in.bosch.com"
+
+
+# ---------------------------------------------------------------------------
+# Category 3: Personal Care / Soap with Quantity Qualifiers & Misleading Terms
+# Exercises: quantityQualifiers ("when packed", "minimum"), misleadingTerms
+# ("approximately"), soap commodity category.
+# ---------------------------------------------------------------------------
+PATANJALI_SOAP_LINES = [
+    _line("PATANJALI AROGYA HERBAL SOAP", 50, 40, 450, 65, 0.99),
+    _line("Bathing Bar for Gentle Skin Care", 50, 70, 420, 92, 0.98),
+    _line("MANUFACTURED & PACKED BY:", 50, 120, 400, 140, 0.99),
+    _line("Patanjali Ayurved Limited", 50, 142, 350, 162, 0.98),
+    _line("Unit-III, Patanjali Food & Herbal Park, Padartha,", 50, 164, 520, 184, 0.97),
+    _line("Laksar Road, Haridwar - 249 404, Uttarakhand, India.", 50, 186, 530, 206, 0.96),
+    _line("CONSUMER CARE DETAILS:", 50, 230, 380, 250, 0.99),
+    _line("Toll Free: 1800 180 4108", 50, 252, 350, 272, 0.98),
+    _line("Email: feedback@patanjaliayurved.org", 50, 274, 450, 294, 0.98),
+    # Net quantity declared with legally significant qualifier 'when packed'
+    _line("Net Weight when packed: 125 g", 50, 330, 400, 355, 0.99),
+    # Additional qualifying phrases found on packaging
+    _line("Minimum net weight: 120 g", 50, 360, 380, 382, 0.96),
+    # Misleading phrasing occasionally printed
+    _line("Approximately 125 g at manufacture", 50, 390, 420, 412, 0.95),
+    _line("MRP Rs: 35.00", 50, 440, 250, 465, 0.99),
+    _line("(incl. of all taxes)", 50, 468, 260, 485, 0.97),
+    _line("Batch No. : SB0824", 50, 495, 300, 515, 0.98),
+    _line("Mfg. Date : 10 AUG 2024", 50, 520, 350, 540, 0.98),
+    _line("Use By    : 09 AUG 2026", 50, 545, 350, 565, 0.97),
+]
+
+
+def test_patanjali_quantity_qualifiers_extracted():
+    """Legal Metrology Rule 12: Qualifiers such as 'when packed', 'minimum',
+    'not less than' have specific legal status and must be captured in quantityQualifiers.
+    """
+    r = _classify(PATANJALI_SOAP_LINES)
+    assert len(r.quantityQualifiers) >= 2
+    qualifier_types = [q.qualifierType for q in r.quantityQualifiers]
+    assert "WHEN_PACKED" in qualifier_types
+    assert "MINIMUM" in qualifier_types
+
+
+def test_patanjali_misleading_terms_extracted():
+    """Legal Metrology Rule 12(2): Terms like 'approximately', 'about' qualify
+    as misleading quantity declarations. Must be captured in misleadingQuantityTerms.
+    """
+    r = _classify(PATANJALI_SOAP_LINES)
+    assert len(r.misleadingQuantityTerms) >= 1
+    terms = [t.text for t in r.misleadingQuantityTerms]
+    assert "approximately" in terms
+
+
+def test_patanjali_soap_full_field_extraction():
+    """Full extraction sanity check for soap commodity."""
+    r = _classify(PATANJALI_SOAP_LINES)
+    assert r.netQuantity.found is True
+    assert r.netQuantity.value == 125.0
+    assert r.netQuantity.unit == "g"
+    assert r.mrp.found and r.mrp.value == 35.0
+    assert r.batchNumber.found and r.batchNumber.value == "SB0824"
+    assert r.manufacturingDate.found and r.manufacturingDate.month == 8 and r.manufacturingDate.year == 2024
+    assert r.expiryDate.found and r.expiryDate.month == 8 and r.expiryDate.year == 2026
+    assert r.commodity.found and r.commodity.category == "Soap"
+    assert r.consumerCare.found and "1800 180 4108" in r.consumerCare.phone
+
+
+def test_multi_image_merge_preserves_distinct_packer_and_importer():
+    """Multi-image extraction where front photo shows product/dimensions/MRP
+    and back photo shows distinct manufacturer, importer, and packer entities.
+    Merged result must preserve all distinct party entities and dimensions.
+    """
+    from app.classification.merge import merge_extraction_results
+    from app.pipeline import _tag_source_image
+
+    # Front photo: brand, dimensions, net qty, MRP
+    front_lines = [
+        _line("BOSCH PROFESSIONAL POWER TOOLS", 50, 50, 450, 80),
+        _line("Net Qty: 1 U", 50, 100, 200, 125),
+        _line("Dimensions: 35.5 cm x 20 cm x 11 cm", 50, 140, 480, 165),
+        _line("MRP: Rs. 4,850.00 (incl. of all taxes)", 50, 180, 420, 205),
+    ]
+    front_resp = empty_response("bosch_front.jpg", 1000, 1000)
+    for l in front_lines:
+        l.sourceImage = "bosch_front.jpg"
+    front_resp.rawOCR = front_lines
+    classify_fields(front_resp, front_lines)
+    _tag_source_image(front_resp, "bosch_front.jpg")
+
+    # Back photo: party blocks (mfg in Germany, importer in India, packer in India)
+    back_lines = [
+        _line("MANUFACTURED IN GERMANY BY: Robert Bosch GmbH", 50, 100, 500, 120),
+        _line("Leinfelden-Echterdingen, Germany.", 50, 125, 400, 145),
+        _line("IMPORTED & MARKETED BY: Bosch Limited", 50, 200, 450, 220),
+        _line("Bengaluru - 560 030, Karnataka, India.", 50, 225, 450, 245),
+        _line("PACKED BY: Transworld Logistics India Pvt. Ltd.", 50, 300, 500, 320),
+        _line("Bengaluru - 560 099, Karnataka, India.", 50, 325, 450, 345),
+    ]
+    back_resp = empty_response("bosch_back.jpg", 1000, 1000)
+    for l in back_lines:
+        l.sourceImage = "bosch_back.jpg"
+    back_resp.rawOCR = back_lines
+    classify_fields(back_resp, back_lines)
+    _tag_source_image(back_resp, "bosch_back.jpg")
+
+    merged = merge_extraction_results([front_resp, back_resp])
+
+    # Front fields
+    assert merged.mrp.found and merged.mrp.value == 4850.0
+    assert merged.netQuantity.found and merged.netQuantity.value == 1.0
+    assert len(merged.dimensions) == 3
+    # Back fields
+    assert merged.manufacturer.found and "Robert Bosch" in merged.manufacturer.name
+    assert merged.importer.found and "Bosch Limited" in merged.importer.name
+    assert merged.packer.found and "Transworld" in merged.packer.name
+
+
+def test_aashirvaad_real_photo_batch_number_not_atta():
+    """Regression test for real packaging photo 'ChatGPT Image Sep 13, 2026, 05_31_39 PM.png':
+    The back panel displays a product variant image with the word 'ATTA' at x=919.
+    The info table at x=1186 has 'Batch No.' on one line and '(incl. of all taxes) A4G0724'
+    on the line directly above/inline with it.
+    The classifier must extract 'A4G0724' and NEVER extract 'ATTA' as the batch number.
+    """
+    lines = [
+        _line("MRP", 1186, 682, 1239, 704, 0.999),
+        _line(": 295.00", 1296, 681, 1366, 705, 0.985),
+        _line("ATTA", 919, 709, 951, 724, 0.999),   # variant text, wrong column, no digits
+        _line("ATTA", 1043, 713, 1075, 727, 0.999),  # variant text, wrong column, no digits
+        _line("Batch No.", 1186, 720, 1253, 743, 0.992),
+        _line("(incl. of all taxes) A4G0724", 1188, 704, 1382, 742, 0.993),
+        _line("Date of Packaging : 15 JUL 2024", 1186, 743, 1405, 765, 0.938),
+    ]
+    r = _classify(lines)
+    assert r.batchNumber.found is True
+    assert r.batchNumber.value == "A4G0724", (
+        f"Expected batchNumber='A4G0724' but got {r.batchNumber.value!r} -- "
+        "'ATTA' from adjacent variant column must not be misidentified as batch code"
+    )

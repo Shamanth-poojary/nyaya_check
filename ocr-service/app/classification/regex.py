@@ -28,7 +28,7 @@ AMOUNT_PATTERN = re.compile(
 # one. If the number found is immediately followed by a recognized unit,
 # it's a quantity, not a price, regardless of what keyword shares the line.
 UNIT_SUFFIX_PATTERN = re.compile(
-    r"^\s*(g|gm|gms|gram|grams|kg|kgs|ml|mls|l|ltr|ltrs|litre|litres|liter|liters|mg)\b",
+    r"^\s*(g|gm|gms|gram|grams|kg|kgs|ml|mls|l|ltr|ltrs|litre|litres|liter|liters|mg|n|no|nos|pcs|pieces|piece|count|units?|u|cm|mm|m|mtr|in)\b",
     re.IGNORECASE,
 )
 
@@ -116,7 +116,8 @@ UNIT_ALIASES = {
     "ml": "ml", "mls": "ml",
     "l": "l", "ltr": "l", "ltrs": "l", "litre": "l", "litres": "l", "liter": "l", "liters": "l",
     "mg": "mg",
-    "n": "n", "no": "n", "nos": "n", "pcs": "n", "pieces": "n", "count": "n",
+    "n": "n", "no": "n", "nos": "n", "pcs": "n", "pieces": "n", "piece": "n", "count": "n",
+    "units": "n", "unit": "n", "u": "n",
 }
 
 QUANTITY_TYPE_BY_UNIT = {
@@ -126,7 +127,7 @@ QUANTITY_TYPE_BY_UNIT = {
 }
 
 NET_QTY_PATTERN = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(g|gm|gms|gram|grams|kg|kgs|ml|mls|l|ltr|ltrs|litre|litres|liter|liters|mg)\b",
+    r"(\d+(?:\.\d+)?)\s*(g|gm|gms|gram|grams|kg|kgs|ml|mls|l|ltr|ltrs|litre|litres|liter|liters|mg|n|no|nos|pcs|pieces|piece|count|units?|u)\b",
     re.IGNORECASE,
 )
 
@@ -155,6 +156,83 @@ def find_net_quantity(text: str) -> Optional[dict]:
         "normalizedValue": normalized_value,
         "normalizedUnit": normalized_unit,
     }
+
+
+# --- Dimensions --------------------------------------------------------------
+
+DIMENSION_UNITS = r"(?:cm|mm|m|mtr|mtrs|meter|meters|in|inch|inches)"
+
+DIMENSION_UNIT_NORM = {
+    "cm": "cm", "mm": "mm", "m": "m", "mtr": "m", "mtrs": "m", "meter": "m", "meters": "m",
+    "in": "in", "inch": "in", "inches": "in",
+}
+
+MULTI_DIM_3_PATTERN = re.compile(
+    rf"(\d+(?:\.\d+)?)\s*({DIMENSION_UNITS})?\s*[xX×]\s*(\d+(?:\.\d+)?)\s*({DIMENSION_UNITS})?\s*[xX×]\s*(\d+(?:\.\d+)?)\s*({DIMENSION_UNITS})\b",
+    re.IGNORECASE,
+)
+
+MULTI_DIM_2_PATTERN = re.compile(
+    rf"(\d+(?:\.\d+)?)\s*({DIMENSION_UNITS})?\s*[xX×]\s*(\d+(?:\.\d+)?)\s*({DIMENSION_UNITS})\b",
+    re.IGNORECASE,
+)
+
+SINGLE_LABELED_DIM_PATTERN = re.compile(
+    rf"\b(length|width|height|depth|breadth|size|dim|dimension|l|w|h|d|b)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*({DIMENSION_UNITS})\b",
+    re.IGNORECASE,
+)
+
+DIMENSION_KEYWORD_PATTERN = re.compile(
+    r"\b(?:dimensions?|size|measurement|dim)\b",
+    re.IGNORECASE,
+)
+
+
+def is_dimension_line(text: str) -> bool:
+    """True if text introduces a dimension declaration."""
+    return bool(DIMENSION_KEYWORD_PATTERN.search(text))
+
+
+def find_dimensions(text: str) -> List[dict]:
+    """Return a list of dimension dicts: [{'label': str, 'value': float, 'unit': str}, ...]."""
+    m3 = MULTI_DIM_3_PATTERN.search(text)
+    if m3:
+        fallback_unit = DIMENSION_UNIT_NORM.get(m3.group(6).lower(), m3.group(6).lower())
+        u1 = DIMENSION_UNIT_NORM.get((m3.group(2) or "").lower(), fallback_unit)
+        u2 = DIMENSION_UNIT_NORM.get((m3.group(4) or "").lower(), fallback_unit)
+        u3 = fallback_unit
+        return [
+            {"label": "length", "value": float(m3.group(1)), "unit": u1},
+            {"label": "width", "value": float(m3.group(3)), "unit": u2},
+            {"label": "height", "value": float(m3.group(5)), "unit": u3},
+        ]
+
+    m2 = MULTI_DIM_2_PATTERN.search(text)
+    if m2:
+        fallback_unit = DIMENSION_UNIT_NORM.get(m2.group(4).lower(), m2.group(4).lower())
+        u1 = DIMENSION_UNIT_NORM.get((m2.group(2) or "").lower(), fallback_unit)
+        u2 = fallback_unit
+        return [
+            {"label": "length", "value": float(m2.group(1)), "unit": u1},
+            {"label": "width", "value": float(m2.group(3)), "unit": u2},
+        ]
+
+    labeled_matches = list(SINGLE_LABELED_DIM_PATTERN.finditer(text))
+    if labeled_matches:
+        results = []
+        label_map = {
+            "l": "length", "w": "width", "h": "height", "d": "depth", "b": "breadth",
+            "dim": "dimension", "dimensions": "dimension",
+        }
+        for lm in labeled_matches:
+            raw_label = lm.group(1).lower()
+            label = label_map.get(raw_label, raw_label)
+            val = float(lm.group(2))
+            unit = DIMENSION_UNIT_NORM.get(lm.group(3).lower(), lm.group(3).lower())
+            results.append({"label": label, "value": val, "unit": unit})
+        return results
+
+    return []
 
 
 # --- Dates -------------------------------------------------------------------
@@ -228,12 +306,12 @@ PHONE_PATTERN = re.compile(
     # Branch 1: mobile / 10-digit (5+5, +91 optional)  -- existing
     r"(?:\+?91[-\s]?)?\d{5}[-\s]?\d{5}"
     r"|"
-    # Branch 2: toll-free 11-digit (1800/1860/1900 + 7 digits, any grouping).
-    # (?:[-\s]?\d){7} matches the 7-digit body as individual digit steps with
+    # Branch 2: toll-free 10/11-digit (1800/1860/1900 + 6 or 7 digits, any grouping).
+    # (?:[-\s]?\d){6,7} matches the 6 or 7-digit body as individual digit steps with
     # optional separator between each, handling formats like:
-    #   4+3+4  ("1800 121 1007"),  4+7   ("18001211007")
+    #   4+3+3  ("1800 222 001"),  4+3+4  ("1800 121 1007"),  4+7   ("18001211007")
     #   4+2+2+3 ("1800 10 22 221"), 4+3+4 ("1800 345 1720")
-    r"1[89]\d{2}(?:[-\s]?\d){7}"
+    r"1[89]\d{2}(?:[-\s]?\d){6,7}"
     r"|"
     # Branch 3: +91-prefixed STD landline (mandatory + or 91 prefix so bare
     # area-code numbers elsewhere don't false-positive).
@@ -284,7 +362,12 @@ BATCH_PATTERN = re.compile(r"(?:BATCH\s*NO\.?|B\.?\s*NO)\s*[:\-.]?\s*([A-Z0-9]+)
 
 
 BATCH_KEYWORD_PATTERN = re.compile(r"BATCH\s*NO\.?|B\.?\s*NO", re.IGNORECASE)
-BATCH_VALUE_PATTERN = re.compile(r"\b([A-Z][A-Z0-9]{3,})\b")  # e.g. AB0724, T0724, B0724, D0724
+
+# A bare batch value found on a neighboring line (without the 'Batch No' keyword)
+# MUST contain at least one digit and at least one letter (e.g. A4G0724, B0724, AB0724,
+# T0724, MNGMARDYI14, SB0824, BS2024G). This prevents plain all-caps dictionary words
+# (e.g. 'ATTA', 'WHEAT', 'FLOUR', 'SELECT', 'BEST', 'PURE') from being misidentified as batch codes.
+BATCH_VALUE_PATTERN = re.compile(r"\b(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*\d)([A-Z0-9]{3,20})\b", re.IGNORECASE)
 
 
 def is_batch_line(text: str) -> bool:
@@ -298,7 +381,7 @@ def find_bare_batch_value(text: str) -> Optional[str]:
     windowed search on lines near a confirmed batch-keyword line, when the
     code itself ended up on a different (unmerged) line."""
     match = BATCH_VALUE_PATTERN.search(text)
-    return match.group(1) if match else None
+    return match.group(0) if match else None
 
 
 def find_batch_number(text: str) -> Optional[str]:

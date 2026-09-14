@@ -148,7 +148,11 @@ class DocumentMeta(BaseModel):
     height: int
 
 
+SCHEMA_VERSION: str = "1.0"
+
+
 class ExtractionResponse(BaseModel):
+    schemaVersion: str = SCHEMA_VERSION
     document: DocumentMeta
     sourceDocuments: List[DocumentMeta] = Field(default_factory=list)  # populated for multi-image extraction
     commodity: Commodity = Field(default_factory=Commodity)

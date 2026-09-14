@@ -21,6 +21,7 @@ from app.classification import commodity, keywords, regex
 from app.schemas.response import (
     BatchNumber,
     DateField,
+    Dimension,
     ExtractionResponse,
     MisleadingTerm,
     MRP,
@@ -96,6 +97,7 @@ def classify_fields(response: ExtractionResponse, lines: List[RawOCRLine]) -> No
     _classify_net_quantity(response, ordered)
     _classify_dates(response, ordered)
     _classify_batch_number(response, ordered)
+    _classify_dimensions(response, ordered)
     _classify_party_blocks(response, ordered, consumed_indices)
     _classify_consumer_care(response, ordered)
     _classify_qualifiers_and_misleading_terms(response, ordered)
@@ -163,6 +165,9 @@ def _classify_mrp(response: ExtractionResponse, lines: List[RawOCRLine]) -> None
         hit = regex.find_mrp(line.text)
         if hit:
             value, tax_included = hit
+            if not tax_included and i + 1 < len(lines):
+                if regex.TAX_INCLUDED_PATTERN.search(lines[i + 1].text):
+                    tax_included = True
             candidates.append((value, tax_included, line))
             continue
 
@@ -299,6 +304,13 @@ def _classify_dates(response: ExtractionResponse, lines: List[RawOCRLine]) -> No
 BATCH_SEARCH_WINDOW = 3  # lines to check after (or before) a 'Batch No' keyword line
 
 
+def _is_same_row(a: RawOCRLine, b: RawOCRLine) -> bool:
+    """True if lines are on the same visual row (inline horizontally)."""
+    a_center = (a.bbox.ymin + a.bbox.ymax) / 2
+    b_center = (b.bbox.ymin + b.bbox.ymax) / 2
+    return abs(a_center - b_center) <= READING_ORDER_ROW_TOLERANCE
+
+
 def _classify_batch_number(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
     for i, line in enumerate(lines):
         batch = regex.find_batch_number(line.text)
@@ -309,32 +321,83 @@ def _classify_batch_number(response: ExtractionResponse, lines: List[RawOCRLine]
             return
 
         if regex.is_batch_line(line.text):
+            candidates = []
             # Forward window: most common case (value on the line(s) after
-            # the keyword).
+            # the keyword, or adjacent on the same visual row).
             for j in range(i + 1, min(i + 1 + BATCH_SEARCH_WINDOW, len(lines))):
                 candidate_line = lines[j]
+                if not (_is_same_column(line, candidate_line) or _is_same_row(line, candidate_line)):
+                    continue
                 bare_batch = regex.find_bare_batch_value(candidate_line.text)
                 if bare_batch:
-                    response.batchNumber = BatchNumber(
-                        value=bare_batch, raw=candidate_line.text, bbox=candidate_line.bbox,
-                        found=True, confidence=candidate_line.confidence,
-                    )
-                    return
+                    candidates.append((bare_batch, candidate_line))
 
             # Backward window: fallback for same-physical-row layouts where
             # a glyph-height difference causes the value's bbox to sort
             # fractionally ABOVE the keyword in reading order (e.g. 'B0724'
             # bounding box 2 px higher than 'Batch No.' due to digit vs
-            # letter height). The forward-only search silently misses that.
+            # letter height).
             for j in range(max(0, i - BATCH_SEARCH_WINDOW), i):
                 candidate_line = lines[j]
+                if not (_is_same_column(line, candidate_line) or _is_same_row(line, candidate_line)):
+                    continue
                 bare_batch = regex.find_bare_batch_value(candidate_line.text)
                 if bare_batch:
-                    response.batchNumber = BatchNumber(
-                        value=bare_batch, raw=candidate_line.text, bbox=candidate_line.bbox,
-                        found=True, confidence=candidate_line.confidence,
+                    candidates.append((bare_batch, candidate_line))
+
+            if candidates:
+                best_val, best_line = max(candidates, key=lambda c: c[1].confidence)
+                response.batchNumber = BatchNumber(
+                    value=best_val,
+                    raw=best_line.text,
+                    bbox=best_line.bbox,
+                    found=True,
+                    confidence=best_line.confidence,
+                )
+                return
+
+
+DIMENSION_SEARCH_WINDOW = 3
+
+
+def _classify_dimensions(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
+    handled_indices = set()
+    for i, line in enumerate(lines):
+        if i in handled_indices:
+            continue
+        dims = regex.find_dimensions(line.text)
+        if dims:
+            for d in dims:
+                response.dimensions.append(
+                    Dimension(
+                        label=d.get("label"),
+                        value=d.get("value"),
+                        unit=d.get("unit"),
+                        bbox=line.bbox,
                     )
-                    return
+                )
+            handled_indices.add(i)
+            continue
+
+        # Keyword on this line, value on the next line (e.g. "Size:" \n "40 cm x 60 cm")
+        if regex.is_dimension_line(line.text):
+            for j in range(i + 1, min(i + 1 + DIMENSION_SEARCH_WINDOW, len(lines))):
+                if j in handled_indices:
+                    continue
+                candidate = lines[j]
+                dims = regex.find_dimensions(candidate.text)
+                if dims:
+                    for d in dims:
+                        response.dimensions.append(
+                            Dimension(
+                                label=d.get("label"),
+                                value=d.get("value"),
+                                unit=d.get("unit"),
+                                bbox=candidate.bbox,
+                            )
+                        )
+                    handled_indices.add(j)
+                    break
 
 
 ROLE_BLOCK_MAX_LINES = 10  # generous window since column-filtering below can
@@ -406,7 +469,11 @@ def _clean_address_line(text: str) -> str:
 # LINE ("MANUFACTURED BY: Hindustan Unilever Ltd.") rather than starting on
 # the next line. Used to strip the header text and keep only the name.
 ROLE_HEADER_PATTERN = re.compile(
-    r"(?:manufactured\s*(?:&|and)?\s*(?:packed|marketed)?\s*by|packed\s*by|imported\s*by|marketed\s*by)\s*[:\-]?\s*",
+    r"(?:manufactured\s*(?:in\s+[a-zA-Z\s]+)?\s*(?:&|and)?\s*(?:packed|marketed)?\s*by|"
+    r"packed\s*(?:&|and)?\s*(?:marketed)?\s*by|"
+    r"imported\s*(?:&|and)?\s*(?:marketed|packed)?\s*by|"
+    r"marketed\s*by|"
+    r"packer\s*[:\-]|importer\s*[:\-])\s*[:\-]?\s*",
     re.IGNORECASE,
 )
 
@@ -415,6 +482,8 @@ def _classify_party_blocks(
     response: ExtractionResponse, lines: List[RawOCRLine], consumed_indices: set
 ) -> None:
     for i, line in enumerate(lines):
+        if i in consumed_indices:
+            continue
         roles = keywords.match_role_keyword(line.text)
         if not roles:
             continue
@@ -428,6 +497,8 @@ def _classify_party_blocks(
 
         block_lines = []
         for j in range(i + 1, min(i + 1 + ROLE_BLOCK_MAX_LINES, len(lines))):
+            if j in consumed_indices:
+                break
             candidate = lines[j]
             # Real labels often have a front-panel column (brand name,
             # tagline) sitting at a similar height to the back-panel
@@ -450,6 +521,12 @@ def _classify_party_blocks(
 
         if not block_lines and not same_line_name:
             continue
+
+        consumed_indices.add(i)
+        for cand in block_lines:
+            cand_idx = next((idx for idx, l in enumerate(lines) if l is cand), None)
+            if cand_idx is not None:
+                consumed_indices.add(cand_idx)
 
         if same_line_name:
             name = same_line_name
@@ -477,12 +554,14 @@ def _classify_party_blocks(
             party = PartyInfo(
                 name=name, address=address, role=combined_role_label, found=True, confidence=avg_confidence
             )
-            if role in ("manufacturer", "marketer") and not response.manufacturer.found:
+            if role == "manufacturer" and not response.manufacturer.found:
                 response.manufacturer = party
             elif role == "packer" and not response.packer.found:
                 response.packer = party
             elif role == "importer" and not response.importer.found:
                 response.importer = party
+            elif role == "marketer" and not response.manufacturer.found:
+                response.manufacturer = party
 
 
 import re as _re

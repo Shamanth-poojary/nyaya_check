@@ -1,0 +1,955 @@
+{
+  "$defs": {
+    "BatchNumber": {
+      "description": "Not in the original contract -- added after real test photos showed\na 'B.NO:...' batch/lot code that has nowhere else to go.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "found": {
+          "default": false,
+          "title": "Found",
+          "type": "boolean"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "BatchNumber",
+      "type": "object"
+    },
+    "BoundingBox": {
+      "properties": {
+        "xmin": {
+          "title": "Xmin",
+          "type": "integer"
+        },
+        "ymin": {
+          "title": "Ymin",
+          "type": "integer"
+        },
+        "xmax": {
+          "title": "Xmax",
+          "type": "integer"
+        },
+        "ymax": {
+          "title": "Ymax",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "xmin",
+        "ymin",
+        "xmax",
+        "ymax"
+      ],
+      "title": "BoundingBox",
+      "type": "object"
+    },
+    "Commodity": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category"
+        },
+        "found": {
+          "default": false,
+          "title": "Found",
+          "type": "boolean"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "Commodity",
+      "type": "object"
+    },
+    "ConsumerCare": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Email"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "found": {
+          "default": false,
+          "title": "Found",
+          "type": "boolean"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "ConsumerCare",
+      "type": "object"
+    },
+    "DateField": {
+      "description": "Shared shape for manufacturing / expiry / packing dates.",
+      "properties": {
+        "raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw"
+        },
+        "dateType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datetype"
+        },
+        "day": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Day"
+        },
+        "month": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Month"
+        },
+        "year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Year"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "found": {
+          "default": false,
+          "title": "Found",
+          "type": "boolean"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "DateField",
+      "type": "object"
+    },
+    "Dimension": {
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "Dimension",
+      "type": "object"
+    },
+    "DocumentMeta": {
+      "properties": {
+        "imageId": {
+          "title": "Imageid",
+          "type": "string"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "imageId",
+        "width",
+        "height"
+      ],
+      "title": "DocumentMeta",
+      "type": "object"
+    },
+    "MRP": {
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "currency": {
+          "default": "INR",
+          "title": "Currency",
+          "type": "string"
+        },
+        "taxIncluded": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Taxincluded"
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "found": {
+          "default": false,
+          "title": "Found",
+          "type": "boolean"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "MRP",
+      "type": "object"
+    },
+    "Measurement": {
+      "description": "Physical measurement, kept separate from the declared label value.\nNever inferred from a photo -- only populated if supplied externally.",
+      "properties": {
+        "available": {
+          "default": false,
+          "title": "Available",
+          "type": "boolean"
+        },
+        "actualValue": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actualvalue"
+        },
+        "actualUnit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actualunit"
+        }
+      },
+      "title": "Measurement",
+      "type": "object"
+    },
+    "MisleadingTerm": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "MisleadingTerm",
+      "type": "object"
+    },
+    "NetQuantity": {
+      "properties": {
+        "rawValue": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rawvalue"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "quantityType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantitytype"
+        },
+        "normalizedValue": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalizedvalue"
+        },
+        "normalizedUnit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalizedunit"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "found": {
+          "default": false,
+          "title": "Found",
+          "type": "boolean"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "NetQuantity",
+      "type": "object"
+    },
+    "PartyInfo": {
+      "description": "Shared shape for Manufacturer / Packer / Importer.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "found": {
+          "default": false,
+          "title": "Found",
+          "type": "boolean"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "title": "PartyInfo",
+      "type": "object"
+    },
+    "QuantityQualifier": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "qualifierType": {
+          "title": "Qualifiertype",
+          "type": "string"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "required": [
+        "text",
+        "qualifierType"
+      ],
+      "title": "QuantityQualifier",
+      "type": "object"
+    },
+    "RawOCRLine": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "bbox": {
+          "$ref": "#/$defs/BoundingBox"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "sourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourceimage"
+        }
+      },
+      "required": [
+        "text",
+        "bbox",
+        "confidence"
+      ],
+      "title": "RawOCRLine",
+      "type": "object"
+    },
+    "VisualEvidence": {
+      "properties": {
+        "textRegions": {
+          "items": {
+            "type": "object"
+          },
+          "title": "Textregions",
+          "type": "array"
+        },
+        "relativeFontSizes": {
+          "title": "Relativefontsizes",
+          "type": "object"
+        },
+        "contrast": {
+          "title": "Contrast",
+          "type": "object"
+        },
+        "readability": {
+          "title": "Readability",
+          "type": "object"
+        },
+        "quantityClearance": {
+          "title": "Quantityclearance",
+          "type": "object"
+        },
+        "principalDisplayPanel": {
+          "title": "Principaldisplaypanel",
+          "type": "object"
+        }
+      },
+      "title": "VisualEvidence",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schemaVersion": {
+      "default": "1.0",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "document": {
+      "$ref": "#/$defs/DocumentMeta"
+    },
+    "sourceDocuments": {
+      "items": {
+        "$ref": "#/$defs/DocumentMeta"
+      },
+      "title": "Sourcedocuments",
+      "type": "array"
+    },
+    "commodity": {
+      "$ref": "#/$defs/Commodity"
+    },
+    "manufacturer": {
+      "$ref": "#/$defs/PartyInfo"
+    },
+    "packer": {
+      "$ref": "#/$defs/PartyInfo"
+    },
+    "importer": {
+      "$ref": "#/$defs/PartyInfo"
+    },
+    "mrp": {
+      "$ref": "#/$defs/MRP"
+    },
+    "netQuantity": {
+      "$ref": "#/$defs/NetQuantity"
+    },
+    "manufacturingDate": {
+      "$ref": "#/$defs/DateField"
+    },
+    "packingDate": {
+      "$ref": "#/$defs/DateField"
+    },
+    "expiryDate": {
+      "$ref": "#/$defs/DateField"
+    },
+    "batchNumber": {
+      "$ref": "#/$defs/BatchNumber"
+    },
+    "dimensions": {
+      "items": {
+        "$ref": "#/$defs/Dimension"
+      },
+      "title": "Dimensions",
+      "type": "array"
+    },
+    "consumerCare": {
+      "$ref": "#/$defs/ConsumerCare"
+    },
+    "quantityQualifiers": {
+      "items": {
+        "$ref": "#/$defs/QuantityQualifier"
+      },
+      "title": "Quantityqualifiers",
+      "type": "array"
+    },
+    "misleadingQuantityTerms": {
+      "items": {
+        "$ref": "#/$defs/MisleadingTerm"
+      },
+      "title": "Misleadingquantityterms",
+      "type": "array"
+    },
+    "measurement": {
+      "$ref": "#/$defs/Measurement"
+    },
+    "visual": {
+      "$ref": "#/$defs/VisualEvidence"
+    },
+    "rawOCR": {
+      "items": {
+        "$ref": "#/$defs/RawOCRLine"
+      },
+      "title": "Rawocr",
+      "type": "array"
+    },
+    "uncertainFields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Uncertainfields",
+      "type": "array"
+    }
+  },
+  "required": [
+    "document"
+  ],
+  "title": "ExtractionResponse",
+  "type": "object"
+}

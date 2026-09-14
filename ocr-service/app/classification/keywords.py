@@ -67,10 +67,13 @@ FUZZY_ABBREVIATIONS = {
 
 # --- Party role headers ------------------------------------------------------
 
-MANUFACTURER_ONLY_KEYWORDS = ["manufactured by", "manufactured & marketed by", "mfg by", "mfd by"]
-PACKER_ONLY_KEYWORDS = ["packed by", "packer"]
-IMPORTER_KEYWORDS = ["imported by", "importer"]
-MARKETER_KEYWORDS = ["marketed by"]
+MANUFACTURER_ONLY_KEYWORDS = [
+    "manufactured by", "manufactured & marketed by", "manufactured and marketed by",
+    "manufactured in", "mfg by", "mfd by", "manufacturer",
+]
+PACKER_ONLY_KEYWORDS = ["packed by", "packer", "packaging by"]
+IMPORTER_KEYWORDS = ["imported by", "importer", "import by"]
+MARKETER_KEYWORDS = ["marketed by", "marketer"]
 
 # Combined phrasing -- extremely common on real labels ("Manufactured &
 # Packed by X") where ONE entity fills multiple roles. Checked before the
@@ -80,9 +83,12 @@ MARKETER_KEYWORDS = ["marketed by"]
 COMBINED_ROLE_KEYWORDS = [
     (["manufactured & packed by", "manufactured and packed by"], ["manufacturer", "packer"]),
     (["manufactured & marketed by", "manufactured and marketed by"], ["manufacturer"]),
+    (["imported & marketed by", "imported and marketed by"], ["importer", "marketer"]),
+    (["imported & packed by", "imported and packed by"], ["importer", "packer"]),
 ]
 
 CONSUMER_CARE_KEYWORDS = ["customer care", "consumer care", "consumer complaint"]
+DIMENSION_KEYWORDS = ["dimension", "dimensions", "size", "measurement", "dim"]
 
 
 def match_role_keyword(text: str) -> Optional[List[str]]:
@@ -111,6 +117,11 @@ def match_role_keyword(text: str) -> Optional[List[str]]:
 def is_consumer_care_line(text: str) -> bool:
     lowered = text.lower()
     return any(k in lowered for k in CONSUMER_CARE_KEYWORDS)
+
+
+def is_dimension_line(text: str) -> bool:
+    lowered = text.lower()
+    return any(re.search(rf"\b{re.escape(k)}\b", lowered) for k in DIMENSION_KEYWORDS)
 
 
 # --- Date-type keywords (with OCR-misread tolerance) --------------------------
