@@ -249,6 +249,11 @@ def _classify_net_quantity(response: ExtractionResponse, lines: List[RawOCRLine]
     # window of NEARBY lines (not just the same line) for the value --
     # real labels sometimes put the label and value on separate physical
     # lines (e.g. "Net Contents:" then "600 ml" below it).
+    #
+    # Also searches BACKWARD from the keyword line (up to NET_QTY_SEARCH_WINDOW
+    # lines before it) because on rotated / perspective-distorted photos the
+    # OCR sorts text by ymin in the skewed coordinate system -- so "250 g" may
+    # sort earlier than "NET QUANTITY:" even though they are visually adjacent.
     for i, line in enumerate(lines):
         if not keywords.is_net_quantity_line(line.text):
             continue
@@ -258,10 +263,27 @@ def _classify_net_quantity(response: ExtractionResponse, lines: List[RawOCRLine]
             response.netQuantity = NetQuantity(bbox=line.bbox, found=True, confidence=line.confidence, **hit)
             return
 
+        # Forward window: value is below the keyword line
         for j in range(i + 1, min(i + 1 + NET_QTY_SEARCH_WINDOW, len(lines))):
             candidate = lines[j]
             hit = regex.find_net_quantity(candidate.text)
             if hit:
+                response.netQuantity = NetQuantity(
+                    bbox=candidate.bbox, found=True, confidence=candidate.confidence, **hit
+                )
+                return
+
+        # Backward window: value sorted before the keyword (rotated label case)
+        for j in range(max(0, i - NET_QTY_SEARCH_WINDOW), i):
+            candidate = lines[j]
+            hit = regex.find_net_quantity(candidate.text)
+            if hit:
+                # Extra guard: exclude lines that contain excluded keywords to
+                # avoid misclassifying nutritional-panel values that also precede
+                # the NQ keyword in a scrambled reading order.
+                lowered = candidate.text.lower()
+                if any(k in lowered for k in NET_QTY_EXCLUSION_KEYWORDS):
+                    continue
                 response.netQuantity = NetQuantity(
                     bbox=candidate.bbox, found=True, confidence=candidate.confidence, **hit
                 )

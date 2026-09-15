@@ -38,7 +38,13 @@ TAX_INCLUDED_PATTERN = re.compile(r"incl(?:usive|\.)?\s*(?:of)?\s*(?:all)?\s*tax
 def find_bare_amount(text: str) -> Optional[float]:
     """Find a monetary amount with NO keyword requirement -- for windowed
     search on lines near a confirmed 'MRP' keyword line, when the amount
-    itself ended up on a different (unmerged) line."""
+    itself ended up on a different (unmerged) line.
+
+    Rejects values above 50 000 -- real MRPs on Indian packaged goods are
+    never that large, and FSSAI licence numbers (14 digits) can otherwise
+    be grabbed erroneously when the MRP keyword line is low-confidence and
+    the windowed search falls through to a nearby Lic. No. line.
+    """
     for match in AMOUNT_PATTERN.finditer(text):
         remainder = text[match.end():]
         if UNIT_SUFFIX_PATTERN.match(remainder):
@@ -47,9 +53,12 @@ def find_bare_amount(text: str) -> Optional[float]:
         if not raw_num:
             continue
         try:
-            return float(raw_num)
+            value = float(raw_num)
         except ValueError:
             continue
+        if value > 50_000:
+            continue  # implausibly large -- likely an FSSAI/barcode number, not a price
+        return value
     return None
 
 
@@ -115,6 +124,8 @@ def find_mrp(text: str) -> Optional[Tuple[float, bool]]:
             value = float(raw_num)
         except ValueError:
             continue
+        if value > 50_000:
+            continue  # implausibly large -- likely an FSSAI/barcode number, not a price
         tax_included = bool(TAX_INCLUDED_PATTERN.search(text)) or None
         return value, tax_included
     return None
@@ -370,7 +381,14 @@ def find_pin_code(text: str) -> Optional[str]:
 
 # --- Batch / lot number --------------------------------------------------------
 
-BATCH_PATTERN = re.compile(r"(?:BATCH\s*NO\.?|B\.?\s*NO)\s*[:\-.]?\s*([A-Z0-9]+)", re.IGNORECASE)
+# Inline batch value in keyword line: the value must contain at least one
+# letter and at least one digit. Also guard the captured group itself so that
+# plain words like 'and', 'MRP' can't be extracted when OCR glues the keyword
+# and surrounding text on the same line (e.g. 'Batch No. and MRP').
+BATCH_PATTERN = re.compile(
+    r"(?:BATCH\s*NO\.?|B\.?\s*NO)\s*[:\-.]?\s*([A-Z0-9]*[A-Z][A-Z0-9]*\d[A-Z0-9]*|[A-Z0-9]*\d[A-Z0-9]*[A-Z][A-Z0-9]*)",
+    re.IGNORECASE,
+)
 
 
 BATCH_KEYWORD_PATTERN = re.compile(r"BATCH\s*NO\.?|B\.?\s*NO", re.IGNORECASE)

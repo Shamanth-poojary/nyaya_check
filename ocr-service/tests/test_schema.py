@@ -15,9 +15,9 @@ SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / "schema_snapshot.json"
 
 
 def test_schema_version_is_set():
-    assert SCHEMA_VERSION == "1.0"
+    assert SCHEMA_VERSION == "2.0"
     resp = ExtractionResponse.model_construct()
-    assert resp.schemaVersion == "1.0"
+    assert resp.schemaVersion == "2.0"
 
 
 def test_schema_snapshot_matches():

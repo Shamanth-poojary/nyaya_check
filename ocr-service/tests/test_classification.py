@@ -1486,3 +1486,77 @@ def test_hana_multi_photo_merge_mrp_is_40_not_2000():
     assert not any("Conflicting 'mrp'" in u for u in merged.uncertainFields)
 
 
+# ---------------------------------------------------------------------------
+# Regression: Real test-image bugs discovered during Phase 02 integration test
+# ---------------------------------------------------------------------------
+
+def test_fssai_licence_not_grabbed_as_mrp():
+    """Regression: Parle-G MRP line garbled to 'MRP7 . 30.00' (digit glued to
+    keyword → correctly rejected by _mrp_keyword_end_index guard) but then
+    the windowed search must NOT grab the FSSAI Lic. No. '10013022002253' as
+    the price.  Value > 50 000 guard in find_bare_amount must reject it and
+    fall through to the next MRP-keyword candidate or leave the field unset,
+    NOT produce a 14-digit number as the MRP value.
+    """
+    r = empty_response(image_id="parle_g.jpg", width=1448, height=1086)
+    lines = [
+        # MRP line — garbled: digit glued to keyword → is_mrp_line rejects it
+        _line("MRP7 . 30.00", 0, 571, 400, 596, 0.125),  # very low confidence, digit-fused
+        _line("(INCLUSIVE OF ALL TAXES)", 0, 592, 400, 618, 0.997),
+        # FSSAI Lic. No. immediately follows — must NOT be grabbed as MRP
+        _line("Lic. No. 10013022002253", 0, 609, 400, 634, 0.985),
+    ]
+    classify_fields(r, lines)
+    # Either the MRP is correctly extracted as 30.0 (via another path)
+    # or it is left not-found — but it must NEVER be the licence number.
+    if r.mrp.found:
+        assert r.mrp.value < 50_000, (
+            f"MRP value {r.mrp.value} exceeds 50 000 — an FSSAI licence number "
+            "was likely misclassified as the price."
+        )
+
+
+def test_batch_rejects_plain_word_and():
+    """Regression: Britannia Marie Gold OCR produced 'Batch No. and MRP' on one
+    line. The old BATCH_PATTERN grabbed 'and' as the batch code; the new pattern
+    requires the captured value to contain at least one digit, so 'and' is
+    rejected and the field is left unset.
+    """
+    r = empty_response(image_id="britannia.jpg", width=1448, height=1086)
+    lines = [
+        # Actual OCR line from Britannia Marie Gold: NQ keyword + value glued together
+        _line("Batch No. and MRP", 0, 308, 500, 349, 0.999),
+        # Real batch value is on the side seal — not available in this scan
+        _line("MFD.: 05/08/2025", 0, 400, 500, 440, 0.995),
+    ]
+    classify_fields(r, lines)
+    if r.batchNumber.found:
+        assert r.batchNumber.value.lower() != "and", (
+            "Batch code 'and' is a plain word with no digit — must not be accepted."
+        )
+        # Any accepted value must contain at least one digit
+        assert any(c.isdigit() for c in r.batchNumber.value), (
+            f"Batch code '{r.batchNumber.value}' contains no digit — invalid batch token."
+        )
+
+
+def test_net_quantity_found_when_value_precedes_keyword_in_reading_order():
+    """Regression: Tata Tea Premium (rotated photo) — OCR sorts '250 g' (ymin=151)
+    before 'NET QUANTITY:' (ymin=202) because the photo is tilted, making the
+    value line appear higher in the warped coordinate system.  The backward
+    window in _classify_net_quantity must pick up '250 g' and return it.
+    """
+    r = empty_response(image_id="tata_tea.jpg", width=1448, height=1086)
+    lines = [
+        # '250 g' sorts FIRST (lower ymin), NET QUANTITY: sorts second
+        _line("250 g", 600, 151, 900, 214, 0.999),          # value line (ymin=151)
+        _line("NET QUANTITY:", 400, 202, 700, 299, 0.999),   # keyword line (ymin=202)
+        _line("INGREDIENTS: Tea", 400, 254, 750, 339, 0.984),
+    ]
+    classify_fields(r, lines)
+    assert r.netQuantity.found is True, (
+        "Net quantity must be found even when '250 g' sorts before 'NET QUANTITY:' "
+        "in reading order due to photo rotation."
+    )
+    assert r.netQuantity.value == 250.0
+    assert r.netQuantity.unit == "g"

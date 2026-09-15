@@ -231,6 +231,30 @@
       "title": "ConsumerCare",
       "type": "object"
     },
+    "ContrastEntry": {
+      "description": "Contrast measurement for one classified field's bbox region.\n\nstdDev is the grayscale pixel-intensity standard deviation within the\ncropped bbox region -- a RELATIVE indicator of visual contrast, not a\nphotometric calibrated measurement.  bucket maps it to a qualitative label.",
+      "properties": {
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "stdDev": {
+          "title": "Stddev",
+          "type": "number"
+        },
+        "bucket": {
+          "title": "Bucket",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "stdDev",
+        "bucket"
+      ],
+      "title": "ContrastEntry",
+      "type": "object"
+    },
     "DateField": {
       "description": "Shared shape for manufacturing / expiry / packing dates.",
       "properties": {
@@ -417,6 +441,37 @@
         "height"
       ],
       "title": "DocumentMeta",
+      "type": "object"
+    },
+    "FontSizeEntry": {
+      "description": "Relative font-size evidence for one classified field.\n\nheightPx is the bbox height in the *original* photo's pixel coordinate\nsystem (already inverse-scaled back from any internal resizing).\nratioToNetQuantity is heightPx / netQuantity.heightPx; None when\nnetQuantity has no bbox.  These are pixel ratios, not physical sizes.",
+      "properties": {
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "heightPx": {
+          "title": "Heightpx",
+          "type": "integer"
+        },
+        "ratioToNetQuantity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ratiotonetquantity"
+        }
+      },
+      "required": [
+        "field",
+        "heightPx"
+      ],
+      "title": "FontSizeEntry",
       "type": "object"
     },
     "MRP": {
@@ -747,6 +802,95 @@
       "title": "PartyInfo",
       "type": "object"
     },
+    "PrincipalDisplayPanel": {
+      "description": "Heuristic identification of the Principal Display Panel image.\n\nFor multi-image submissions: the sourceImage that contributed the most of\n{commodity, netQuantity, mrp} is identified as the likely PDP.\nFor single-image submissions: trivially identified as the only image.\nisHeuristic is always True -- this is an inference from field-source tags,\nnot from photo metadata (there is none).",
+      "properties": {
+        "likelySourceImage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Likelysourceimage"
+        },
+        "isHeuristic": {
+          "default": true,
+          "title": "Isheuristic",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "PrincipalDisplayPanel",
+      "type": "object"
+    },
+    "QuantityClearance": {
+      "description": "Whitespace clearance around the net quantity declaration.\n\nEach ratio = distance-to-nearest-neighbor-in-pixels / netQuantity-bbox-height.\nNeighbor = nearest other rawOCR bbox in that cardinal direction, or the\nimage edge if no text is closer.  These are pixel ratios in the original\nphoto's coordinate space; they do NOT represent physical mm clearances.\nNone means the net quantity field has no bbox and clearance cannot be computed.",
+      "properties": {
+        "aboveRatio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aboveratio"
+        },
+        "belowRatio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Belowratio"
+        },
+        "leftRatio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leftratio"
+        },
+        "rightRatio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rightratio"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "QuantityClearance",
+      "type": "object"
+    },
     "QuantityQualifier": {
       "properties": {
         "text": {
@@ -822,34 +966,87 @@
       "title": "RawOCRLine",
       "type": "object"
     },
-    "VisualEvidence": {
+    "ReadabilityEntry": {
+      "description": "Qualitative readability flag for one classified field.\n\nCombination heuristic (documented in app/visual/contrast.py):\n  hard_to_read if contrast.bucket == \"low\"\n               OR (contrast.bucket == \"medium\" AND ratioToNetQuantity < 0.5)\n  readable otherwise.\nThis is a HEURISTIC SIGNAL, not a certified measurement.  The Phase 03\nrules engine should treat \"hard_to_read\" as a soft signal, not a hard fail.",
       "properties": {
-        "textRegions": {
-          "items": {
-            "type": "object"
-          },
-          "title": "Textregions",
-          "type": "array"
-        },
-        "relativeFontSizes": {
-          "title": "Relativefontsizes",
-          "type": "object"
-        },
-        "contrast": {
-          "title": "Contrast",
-          "type": "object"
+        "field": {
+          "title": "Field",
+          "type": "string"
         },
         "readability": {
           "title": "Readability",
-          "type": "object"
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "readability",
+        "reason"
+      ],
+      "title": "ReadabilityEntry",
+      "type": "object"
+    },
+    "VisualEvidence": {
+      "description": "Phase 02 visual analysis results.\n\nAll fields are relative/qualitative indicators derived from pixel data.\nNo absolute physical measurements are present.  See individual model\ndocstrings for the exact meaning of each metric.",
+      "properties": {
+        "relativeFontSizes": {
+          "items": {
+            "$ref": "#/$defs/FontSizeEntry"
+          },
+          "title": "Relativefontsizes",
+          "type": "array"
+        },
+        "netQuantityMedianRatio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Netquantitymedianratio"
+        },
+        "contrast": {
+          "items": {
+            "$ref": "#/$defs/ContrastEntry"
+          },
+          "title": "Contrast",
+          "type": "array"
+        },
+        "readability": {
+          "items": {
+            "$ref": "#/$defs/ReadabilityEntry"
+          },
+          "title": "Readability",
+          "type": "array"
         },
         "quantityClearance": {
-          "title": "Quantityclearance",
-          "type": "object"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuantityClearance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "principalDisplayPanel": {
-          "title": "Principaldisplaypanel",
-          "type": "object"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalDisplayPanel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "VisualEvidence",
@@ -858,7 +1055,7 @@
   },
   "properties": {
     "schemaVersion": {
-      "default": "1.0",
+      "default": "2.0",
       "title": "Schemaversion",
       "type": "string"
     },

@@ -133,13 +133,98 @@ class Measurement(BaseModel):
     actualUnit: Optional[str] = None
 
 
+# ---------------------------------------------------------------------------
+# Phase 02 Visual Analysis models
+# All values are RELATIVE or QUALITATIVE.  No absolute physical measurements
+# (mm, point sizes) are ever produced here -- only pixel-space ratios derived
+# from the same uncalibrated photo's coordinate system, labeled as such.
+# ---------------------------------------------------------------------------
+
+class FontSizeEntry(BaseModel):
+    """Relative font-size evidence for one classified field.
+
+    heightPx is the bbox height in the *original* photo's pixel coordinate
+    system (already inverse-scaled back from any internal resizing).
+    ratioToNetQuantity is heightPx / netQuantity.heightPx; None when
+    netQuantity has no bbox.  These are pixel ratios, not physical sizes.
+    """
+    field: str                              # classifier field name, e.g. "mrp", "netQuantity"
+    heightPx: int                           # bbox height in original-photo pixels (relative, not physical)
+    ratioToNetQuantity: Optional[float] = None  # None if netQuantity bbox unavailable
+
+
+class ContrastEntry(BaseModel):
+    """Contrast measurement for one classified field's bbox region.
+
+    stdDev is the grayscale pixel-intensity standard deviation within the
+    cropped bbox region -- a RELATIVE indicator of visual contrast, not a
+    photometric calibrated measurement.  bucket maps it to a qualitative label.
+    """
+    field: str
+    stdDev: float   # grayscale std-dev of pixel intensities within crop (relative)
+    bucket: str     # "low" | "medium" | "high"  (thresholds: <20, 20-50, >=50)
+
+
+class ReadabilityEntry(BaseModel):
+    """Qualitative readability flag for one classified field.
+
+    Combination heuristic (documented in app/visual/contrast.py):
+      hard_to_read if contrast.bucket == "low"
+                   OR (contrast.bucket == "medium" AND ratioToNetQuantity < 0.5)
+      readable otherwise.
+    This is a HEURISTIC SIGNAL, not a certified measurement.  The Phase 03
+    rules engine should treat "hard_to_read" as a soft signal, not a hard fail.
+    """
+    field: str
+    readability: str    # "readable" | "hard_to_read"
+    reason: str         # e.g. "low_contrast", "small_relative_size", "ok"
+
+
+class QuantityClearance(BaseModel):
+    """Whitespace clearance around the net quantity declaration.
+
+    Each ratio = distance-to-nearest-neighbor-in-pixels / netQuantity-bbox-height.
+    Neighbor = nearest other rawOCR bbox in that cardinal direction, or the
+    image edge if no text is closer.  These are pixel ratios in the original
+    photo's coordinate space; they do NOT represent physical mm clearances.
+    None means the net quantity field has no bbox and clearance cannot be computed.
+    """
+    aboveRatio: Optional[float] = None
+    belowRatio: Optional[float] = None
+    leftRatio: Optional[float] = None
+    rightRatio: Optional[float] = None
+    note: str = ""      # human-readable explanation / caveat
+
+
+class PrincipalDisplayPanel(BaseModel):
+    """Heuristic identification of the Principal Display Panel image.
+
+    For multi-image submissions: the sourceImage that contributed the most of
+    {commodity, netQuantity, mrp} is identified as the likely PDP.
+    For single-image submissions: trivially identified as the only image.
+    isHeuristic is always True -- this is an inference from field-source tags,
+    not from photo metadata (there is none).
+    """
+    likelySourceImage: Optional[str] = None    # filename of likely PDP; None if undetermined
+    isHeuristic: bool = True
+    note: str = ""      # explanation, e.g. "single-image submission" or "2 of 3 PDP fields sourced here"
+
+
 class VisualEvidence(BaseModel):
-    textRegions: List[dict] = Field(default_factory=list)
-    relativeFontSizes: dict = Field(default_factory=dict)
-    contrast: dict = Field(default_factory=dict)
-    readability: dict = Field(default_factory=dict)
-    quantityClearance: dict = Field(default_factory=dict)
-    principalDisplayPanel: dict = Field(default_factory=dict)
+    """Phase 02 visual analysis results.
+
+    All fields are relative/qualitative indicators derived from pixel data.
+    No absolute physical measurements are present.  See individual model
+    docstrings for the exact meaning of each metric.
+    """
+    relativeFontSizes: List[FontSizeEntry] = Field(default_factory=list)
+    # Ratio of netQuantity bbox height to median rawOCR line height on same photo.
+    # None when netQuantity has no bbox or rawOCR is empty.
+    netQuantityMedianRatio: Optional[float] = None
+    contrast: List[ContrastEntry] = Field(default_factory=list)
+    readability: List[ReadabilityEntry] = Field(default_factory=list)
+    quantityClearance: Optional[QuantityClearance] = None
+    principalDisplayPanel: Optional[PrincipalDisplayPanel] = None
 
 
 class DocumentMeta(BaseModel):
@@ -148,7 +233,7 @@ class DocumentMeta(BaseModel):
     height: int
 
 
-SCHEMA_VERSION: str = "1.0"
+SCHEMA_VERSION: str = "2.0"
 
 
 class ExtractionResponse(BaseModel):

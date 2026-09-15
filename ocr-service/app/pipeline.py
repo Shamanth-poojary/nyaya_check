@@ -23,6 +23,7 @@ from app.ocr.paddle import run_ocr
 from app.preprocessing.pipeline import PreprocessConfig, preprocess
 from app.preprocessing.resize import resize_image
 from app.schemas.response import BoundingBox, ExtractionResponse, RawOCRLine, empty_response
+from app.visual.pipeline import run_visual_analysis
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_FILE_SIZE_MB = 15
@@ -101,6 +102,10 @@ async def process_single_image(image: UploadFile, preprocess_enabled: bool = Fal
 
         classify_fields(response, response.rawOCR)
         _tag_source_image(response, source_name)
+        # Phase 02: populate visual evidence from the original (un-resized) image.
+        # bgr_image is already in memory from the PIL→numpy conversion above;
+        # we pass it here and do NOT persist it to disk beyond this request.
+        response.visual = run_visual_analysis(bgr_image, response)
     except HTTPException:
         raise
     except Exception as exc:
