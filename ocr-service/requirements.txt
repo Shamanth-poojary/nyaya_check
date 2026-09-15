@@ -18,4 +18,5 @@ opencv-python-headless==4.10.0.84
 numpy
 
 # --- Added in later phases ---
+pyyaml                   # Phase 03 - rules engine schedule YAML loader
 # spacy                    # Phase 7 - NER

@@ -1,0 +1,372 @@
+# standard_quantities.yaml
+#
+# Schedule 2 / Third Schedule lookup table for the Legal Metrology
+# (Packaged Commodities) Rules, 2011.
+#
+# TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+# Source referenced: Legal Metrology (Packaged Commodities) Rules, 2011 —
+# Second Schedule (standard quantities for specified commodities) and
+# Third Schedule (SI units and quantity types).
+#
+# Structure per category:
+#   dimensions_required: bool      — whether Rule 6 requires dimensions on label
+#   permitted_qualifier_types:     — qualifier types allowed by Rules 11–17
+#     - WHEN_PACKED
+#     - MINIMUM
+#     - NOT_LESS_THAN
+#     - AVERAGE
+#   permitted_units:               — permitted SI units keyed by quantity_type
+#     weight: [g, kg, mg]
+#     volume: [ml, l, cl]
+#     length: [m, cm, mm]
+#     count:  [No, N]
+#   standard_quantities:           — (value, unit) pairs from Second Schedule
+#     - [value, unit]
+#
+# Categories NOT yet covered are noted with: # TODO: no Schedule 2/3 data yet
+
+Tea:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [25, g]
+    - [50, g]
+    - [100, g]
+    - [200, g]
+    - [250, g]
+    - [500, g]
+    - [1000, g]
+
+Biscuits:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [50, g]
+    - [100, g]
+    - [150, g]
+    - [200, g]
+    - [250, g]
+    - [500, g]
+    - [1000, g]
+
+Rice:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [250, g]
+    - [500, g]
+    - [1000, g]
+    - [2000, g]
+    - [5000, g]
+    - [10000, g]
+
+Salt:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [100, g]
+    - [200, g]
+    - [500, g]
+    - [1000, g]
+    - [2000, g]
+
+Sugar:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [250, g]
+    - [500, g]
+    - [1000, g]
+    - [2000, g]
+    - [5000, g]
+
+Edible Oil:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    volume: [ml, l]
+    weight: [g, kg]
+  standard_quantities:
+    - [200, ml]
+    - [500, ml]
+    - [1000, ml]
+    - [2000, ml]
+    - [5000, ml]
+
+Spices:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [25, g]
+    - [50, g]
+    - [100, g]
+    - [200, g]
+    - [250, g]
+    - [500, g]
+    - [1000, g]
+
+Pulses:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [250, g]
+    - [500, g]
+    - [1000, g]
+    - [2000, g]
+    - [5000, g]
+
+Flour:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [500, g]
+    - [1000, g]
+    - [2000, g]
+    - [5000, g]
+    - [10000, g]
+
+Honey:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+    volume: [ml, l]
+  standard_quantities:
+    - [50, g]
+    - [100, g]
+    - [250, g]
+    - [500, g]
+    - [1000, g]
+
+Milk Powder:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [200, g]
+    - [400, g]
+    - [500, g]
+    - [1000, g]
+
+Beverage:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  # Beverages (carbonated, fruit juice) — volume-based
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    volume: [ml, l, cl]
+  standard_quantities:
+    - [200, ml]
+    - [250, ml]
+    - [300, ml]
+    - [500, ml]
+    - [600, ml]
+    - [750, ml]
+    - [1000, ml]
+    - [1500, ml]
+    - [2000, ml]
+
+Packaged Drinking Water:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    volume: [ml, l]
+  standard_quantities:
+    - [200, ml]
+    - [250, ml]
+    - [500, ml]
+    - [1000, ml]
+    - [1500, ml]
+    - [2000, ml]
+    - [5000, ml]
+
+Snacks:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [30, g]
+    - [50, g]
+    - [100, g]
+    - [150, g]
+    - [200, g]
+    - [500, g]
+
+Dairy:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  # Includes liquid milk (volume) and semi-solid (weight)
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    volume: [ml, l]
+    weight: [g, kg]
+  standard_quantities:
+    - [200, ml]
+    - [500, ml]
+    - [1000, ml]
+    - [200, g]
+    - [400, g]
+    - [500, g]
+    - [1000, g]
+
+Soap:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  # Toilet soap bars — weight required; dimensions not required on label
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+  standard_quantities:
+    - [50, g]
+    - [75, g]
+    - [100, g]
+    - [125, g]
+    - [150, g]
+    - [200, g]
+
+Detergent:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+    volume: [ml, l]
+  standard_quantities:
+    - [200, g]
+    - [500, g]
+    - [1000, g]
+    - [2000, g]
+    - [5000, g]
+
+Toothpaste:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g]
+    volume: [ml]
+  standard_quantities:
+    - [25, g]
+    - [50, g]
+    - [100, g]
+    - [150, g]
+    - [200, g]
+
+Cosmetic:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    weight: [g, kg]
+    volume: [ml, l]
+  standard_quantities:
+    - [25, ml]
+    - [50, ml]
+    - [75, ml]
+    - [100, ml]
+    - [200, ml]
+    - [250, ml]
+    - [500, ml]
+
+Paint:
+  # TODO: no Schedule 2/3 data yet for this category
+  # Paint sold in standard can sizes; no fixed Schedule 2 quantities verified.
+  dimensions_required: false
+  permitted_qualifier_types:
+    - WHEN_PACKED
+    - NOT_LESS_THAN
+  permitted_units:
+    volume: [ml, l]
+    weight: [g, kg]
+  standard_quantities: []   # TODO: verify correct quantities
+
+Ready-made Garment:
+  # TODO: verify against current Legal Metrology Rules text, last checked: 2026-09-15
+  # Garments: dimensions (size) are required on the label under Rule 6 read with
+  # the Fourth Schedule. Quantity declared as number of pieces.
+  dimensions_required: true
+  permitted_qualifier_types: []
+  permitted_units:
+    count: [No, N]
+  standard_quantities:
+    - [1, N]
+
+Tyre:
+  # TODO: no Schedule 2/3 data yet for this category
+  dimensions_required: true
+  permitted_qualifier_types: []
+  permitted_units:
+    count: [No, N]
+  standard_quantities: []   # TODO: verify correct quantities
+
+Cable:
+  # TODO: no Schedule 2/3 data yet for this category
+  dimensions_required: true
+  permitted_qualifier_types:
+    - NOT_LESS_THAN
+  permitted_units:
+    length: [m, cm, mm]
+  standard_quantities: []   # TODO: verify correct quantities
