@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.routes import ocr
+from app.routes import check, ocr
 
 app = FastAPI(
     title="Legal Metrology OCR / Extraction Service",
@@ -17,6 +17,7 @@ app = FastAPI(
 )
 
 app.include_router(ocr.router)
+app.include_router(check.router)
 
 # Serve static UI files (index.html camera/upload page)
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
