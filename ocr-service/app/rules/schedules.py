@@ -35,6 +35,7 @@ with _DATA_FILE.open(encoding="utf-8") as _fh:
 
 SI_UNITS_BY_TYPE: dict[str, Set[str]] = {
     "weight": {"g", "kg", "mg"},
+    "mass": {"g", "kg", "mg"},
     "volume": {"ml", "l", "cl"},
     "length": {"m", "cm", "mm"},
     "count": {"No", "N", "no", "n", "nos", "Nos"},

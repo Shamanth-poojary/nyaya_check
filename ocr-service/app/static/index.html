@@ -3,53 +3,81 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Legal Metrology OCR — Extraction Service</title>
+  <title>Legal Metrology OCR & Compliance Verification</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg:#0b0f1a;--surface:#141824;--surface2:#1c2133;--border:#252d42;
-      --accent:#3b82f6;--accent-glow:#3b82f640;--accent2:#6366f1;
-      --success:#22c55e;--danger:#ef4444;--text:#f0f4ff;--muted:#8892a8;
+      --accent:#3b82f6;--accent-glow:#3b82f633;--accent2:#6366f1;
+      --success:#22c55e;--success-glow:#22c55e26;
+      --warning:#f59e0b;--warning-glow:#f59e0b26;
+      --danger:#ef4444;--danger-glow:#ef444426;
+      --text:#f0f4ff;--muted:#8892a8;
       --radius:14px;--radius-sm:8px;--shadow:0 8px 32px #0007;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html{height:100%}
     body{min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.6;display:flex;flex-direction:column}
     header{padding:1.1rem 2rem;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem}
-    .logo{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
-    .header-text h1{font-size:1rem;font-weight:600}
+    .logo{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 16px var(--accent-glow)}
+    .header-text h1{font-size:1.05rem;font-weight:600;letter-spacing:-0.01em}
     .header-text p{font-size:.75rem;color:var(--muted)}
-    main{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;padding:1.5rem 2rem;max-width:1100px;margin:0 auto;width:100%}
-    .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden}
+    .header-right{margin-left:auto;display:flex;align-items:center;gap:1rem}
+    .health-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}
+    .health-dot.ok{background:var(--success);box-shadow:0 0 6px var(--success)}
+    .health-dot.err{background:var(--danger);box-shadow:0 0 6px var(--danger)}
+    .health-label{font-size:.74rem;color:var(--muted)}
+    .docs-link{font-size:.76rem;color:var(--accent);text-decoration:none;padding:.3rem .65rem;border:1px solid var(--border);border-radius:var(--radius-sm);transition:background .15s}
+    .docs-link:hover{background:var(--surface2)}
+    
+    main{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;padding:1.5rem 2rem;max-width:1160px;margin:0 auto;width:100%}
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow)}
     .panel-header{padding:.85rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.55rem}
     .panel-header .icon{font-size:1.1rem}
     .panel-header h2{font-size:.9rem;font-weight:600}
     .panel-body{flex:1;padding:1.2rem;display:flex;flex-direction:column;gap:1rem}
-    .drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:2.5rem 1rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+    
+    .mode-row{display:flex;gap:.5rem}
+    .mode-btn{flex:1;padding:.45rem .6rem;font-size:.78rem;font-weight:500;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
+    .mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    
+    .drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:2.2rem 1rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
     .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:var(--accent-glow)}
     .drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-    .drop-icon{font-size:2.5rem;margin-bottom:.5rem}
+    .drop-icon{font-size:2.4rem;margin-bottom:.4rem}
     .drop-title{font-weight:600;font-size:.95rem}
     .drop-sub{font-size:.78rem;color:var(--muted);margin-top:.25rem}
     .file-list{display:flex;flex-wrap:wrap;gap:.4rem}
-    .file-chip{background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:.25rem .75rem;font-size:.75rem;display:flex;align-items:center;gap:.4rem;max-width:200px}
+    .file-chip{background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:.25rem .75rem;font-size:.75rem;display:flex;align-items:center;gap:.4rem;max-width:220px}
     .file-chip .chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .chip-rm{cursor:pointer;color:var(--muted);flex-shrink:0;transition:color .15s}
     .chip-rm:hover{color:var(--danger)}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.6rem 1.2rem;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:.85rem;font-weight:500;cursor:pointer;transition:opacity .2s,transform .1s}
-    .btn:active{transform:scale(.97)}
+    
+    .preprocess-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.55rem .85rem;gap:.75rem}
+    .preprocess-label{display:flex;flex-direction:column;gap:.1rem}
+    .preprocess-label strong{font-size:.82rem;font-weight:500}
+    .preprocess-label span{font-size:.72rem;color:var(--muted)}
+    .toggle-wrap{position:relative;flex-shrink:0}
+    .toggle-wrap input[type=checkbox]{opacity:0;width:0;height:0;position:absolute}
+    .toggle-track{display:block;width:40px;height:22px;background:var(--border);border-radius:99px;cursor:pointer;transition:background .2s;position:relative}
+    .toggle-wrap input:checked + .toggle-track{background:var(--accent)}
+    .toggle-thumb{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none}
+    .toggle-wrap input:checked ~ .toggle-thumb{transform:translateX(18px)}
+    
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.65rem 1.2rem;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
+    .btn:active{transform:scale(.98)}
     .btn:disabled{opacity:.45;cursor:not-allowed}
-    .btn-primary{background:var(--accent);color:#fff}
-    .btn-success{background:var(--success);color:#fff}
+    .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 4px 12px var(--accent-glow)}
+    .btn-success{background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff}
     .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
     .btn-full{width:100%}
+    
+    /* Camera UI */
     #cameraPanel .panel-body{padding:0;position:relative}
-    #camIdle{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem;text-align:center}
+    #camIdle{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2.5rem 1.5rem;text-align:center}
     .cam-idle-icon{width:72px;height:72px;background:var(--surface2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;border:1px solid var(--border)}
-    #camIdle h3{font-size:.95rem;font-weight:600}
-    #camIdle p{font-size:.8rem;color:var(--muted)}
     #camActive{display:none;flex-direction:column;height:100%;position:relative}
     .viewfinder-wrap{position:relative;flex:1;background:#000;overflow:hidden;min-height:280px}
     #camVideo{width:100%;height:100%;object-fit:cover;display:block}
@@ -65,9 +93,9 @@
     .vf-icon-btn{width:36px;height:36px;background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s}
     .vf-icon-btn:hover{background:#ffffff22}
     .vf-bottombar{padding:.75rem 1rem;background:#0c101a;display:flex;align-items:center;justify-content:space-between;gap:.6rem}
-    .shutter-btn{width:58px;height:58px;flex-shrink:0;border-radius:50%;background:#fff;border:4px solid #ffffff55;cursor:pointer;transition:transform .12s,box-shadow .12s;box-shadow:0 0 0 3px #fff3;display:flex;align-items:center;justify-content:center}
-    .shutter-btn:active{transform:scale(.88);box-shadow:0 0 0 1px #fff3}
-    .shutter-inner{width:44px;height:44px;border-radius:50%;background:#fff}
+    .shutter-btn{width:56px;height:56px;flex-shrink:0;border-radius:50%;background:#fff;border:4px solid #ffffff55;cursor:pointer;transition:transform .12s;box-shadow:0 0 0 3px #fff3;display:flex;align-items:center;justify-content:center}
+    .shutter-btn:active{transform:scale(.88)}
+    .shutter-inner{width:42px;height:42px;border-radius:50%;background:#fff}
     .captured-strip{display:flex;gap:.4rem;overflow-x:auto;flex:1;align-items:center;scrollbar-width:none}
     .captured-strip::-webkit-scrollbar{display:none}
     .cap-thumb{position:relative;flex-shrink:0;width:50px;height:50px;border-radius:8px;overflow:hidden;border:2px solid var(--accent);cursor:pointer}
@@ -75,60 +103,73 @@
     .cap-thumb .cap-rm{position:absolute;top:2px;right:2px;background:#000b;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff;cursor:pointer}
     .cap-count{font-size:.73rem;color:var(--muted);white-space:nowrap}
     .scan-from-photo{background:#000000bb;border:1px solid #ffffff22;backdrop-filter:blur(6px);color:#fff;font-size:.78rem;padding:.4rem .9rem;border-radius:99px;cursor:pointer;display:flex;align-items:center;gap:.4rem;transition:background .15s;white-space:nowrap}
-    .scan-from-photo:hover{background:#000000dd}
     #camGalleryInput{display:none}
-    .results-section{max-width:1100px;margin:0 auto 1.5rem;width:100%;padding:0 2rem}
-    .results-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
-    .results-header{padding:.85rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.55rem}
-    .results-header h2{font-size:.9rem;font-weight:600;flex:1}
-    #resultBody{padding:1.2rem;font-family:Menlo,Consolas,monospace;font-size:.78rem;line-height:1.7;color:#a8c8ff;white-space:pre-wrap;word-break:break-all;max-height:480px;overflow-y:auto;background:#090d16}
-    #resultBody.placeholder{color:var(--muted);font-family:inherit;font-size:.85rem}
-    .badge{display:inline-flex;align-items:center;padding:.2rem .6rem;border-radius:99px;font-size:.72rem;font-weight:500}
-    .badge-blue{background:#3b82f622;color:#60a5fa;border:1px solid #3b82f644}
-    .badge-green{background:#22c55e22;color:#4ade80;border:1px solid #22c55e44}
-    .badge-red{background:#ef444422;color:#f87171;border:1px solid #ef444444}
-    .badge-yellow{background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @keyframes flash{0%,100%{opacity:0}10%{opacity:.75}}
     .flash-overlay{position:absolute;inset:0;background:#fff;pointer-events:none;opacity:0}
     .flash-overlay.flashing{animation:flash .35s ease}
-    @media(max-width:720px){main{grid-template-columns:1fr;padding:1rem}.results-section{padding:0 1rem}header{padding:1rem}}
-    /* ── Preprocessing toggle ── */
-    .preprocess-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.55rem .85rem;gap:.75rem}
-    .preprocess-label{display:flex;flex-direction:column;gap:.1rem}
-    .preprocess-label strong{font-size:.82rem;font-weight:500}
-    .preprocess-label span{font-size:.72rem;color:var(--muted)}
-    .toggle-wrap{position:relative;flex-shrink:0}
-    .toggle-wrap input[type=checkbox]{opacity:0;width:0;height:0;position:absolute}
-    .toggle-track{display:block;width:40px;height:22px;background:var(--border);border-radius:99px;cursor:pointer;transition:background .2s;position:relative}
-    .toggle-wrap input:checked + .toggle-track{background:var(--accent)}
-    .toggle-thumb{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none}
-    .toggle-wrap input:checked ~ .toggle-thumb{transform:translateX(18px)}
-    /* ── Header extras ── */
-    .header-right{margin-left:auto;display:flex;align-items:center;gap:1rem}
-    .health-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}
-    .health-dot.ok{background:var(--success);box-shadow:0 0 6px var(--success)}
-    .health-dot.err{background:var(--danger);box-shadow:0 0 6px var(--danger)}
-    .health-label{font-size:.74rem;color:var(--muted)}
-    .docs-link{font-size:.76rem;color:var(--accent);text-decoration:none;padding:.3rem .65rem;border:1px solid var(--border);border-radius:var(--radius-sm);transition:background .15s}
-    .docs-link:hover{background:var(--surface2)}
-    /* ── Mode selector ── */
-    .mode-row{display:flex;gap:.5rem}
-    .mode-btn{flex:1;padding:.45rem .6rem;font-size:.78rem;font-weight:500;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
-    .mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    @keyframes flash{0%,100%{opacity:0}10%{opacity:.75}}
+
+    /* ── Results Section ── */
+    .results-section{max-width:1160px;margin:0 auto 2rem;width:100%;padding:0 2rem}
+    .results-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+    .results-header{padding:.85rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+    .results-header h2{font-size:.92rem;font-weight:600}
+    .view-tabs{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px;margin-left:auto}
+    .view-tab{padding:.3rem .75rem;font-size:.75rem;font-weight:500;border:none;background:none;color:var(--muted);cursor:pointer;border-radius:6px;transition:all .15s}
+    .view-tab.active{background:var(--accent);color:#fff}
+    
+    /* Compliance Card Elements */
+    .audit-container{padding:1.4rem;display:flex;flex-direction:column;gap:1.4rem}
+    .status-banner{padding:1.1rem 1.4rem;border-radius:var(--radius);display:flex;align-items:center;gap:1.2rem;justify-content:space-between;border:1px solid var(--border)}
+    .status-banner.status-compliant{background:radial-gradient(ellipse at left,var(--success-glow),transparent),var(--surface2);border-color:#22c55e55}
+    .status-banner.status-non_compliant{background:radial-gradient(ellipse at left,var(--danger-glow),transparent),var(--surface2);border-color:#ef444455}
+    .status-banner.status-needs_review{background:radial-gradient(ellipse at left,var(--warning-glow),transparent),var(--surface2);border-color:#f59e0b55}
+    .status-title-group h3{font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+    .status-title-group p{font-size:.8rem;color:var(--muted);margin-top:.15rem}
+    .metric-pills{display:flex;gap:.5rem;flex-wrap:wrap}
+    .metric-pill{background:var(--surface);border:1px solid var(--border);padding:.35rem .75rem;border-radius:99px;font-size:.76rem;display:flex;align-items:center;gap:.4rem}
+    
+    /* Product Summary Grid */
+    .product-summary-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem}
+    .card-title{font-size:.85rem;font-weight:600;color:#c9d5ec;margin-bottom:.9rem;display:flex;align-items:center;gap:.45rem}
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.8rem}
+    .summary-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.6rem .8rem}
+    .summary-item .label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+    .summary-item .val{font-size:.84rem;font-weight:600;color:var(--text);margin-top:.2rem;word-break:break-word}
+    
+    /* Rules Table */
+    .rules-table-wrap{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2)}
+    .rules-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .rules-table th{background:#111522;padding:.65rem .85rem;text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}
+    .rules-table td{padding:.7rem .85rem;border-bottom:1px solid #1c2236;vertical-align:top}
+    .rules-table tr:last-child td{border-bottom:none}
+    .rule-badge{display:inline-flex;align-items:center;padding:.15rem .55rem;border-radius:99px;font-size:.7rem;font-weight:600}
+    .rule-pass{background:#22c55e22;color:#4ade80;border:1px solid #22c55e44}
+    .rule-fail{background:#ef444422;color:#f87171;border:1px solid #ef444444}
+    .rule-review{background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44}
+    .severity-tag{font-size:.68rem;padding:.1rem .4rem;border-radius:4px;text-transform:uppercase;font-weight:600;display:inline-block;margin-top:.2rem}
+    .sev-blocking{background:#ef444433;color:#fca5a5}
+    .sev-warning{background:#f59e0b33;color:#fcd34d}
+    .sev-info{background:#3b82f622;color:#93c5fd}
+    
+    /* Code / Markdown Tab */
+    #codeView,#markdownView{padding:1.2rem;font-family:'JetBrains Mono',Menlo,Consolas,monospace;font-size:.78rem;line-height:1.7;white-space:pre-wrap;word-break:break-all;max-height:540px;overflow-y:auto;background:#090d16}
+    #codeView{color:#a8c8ff}
+    #markdownView{font-family:Inter,system-ui,sans-serif;color:#e2e8f0;white-space:pre-wrap;font-size:.82rem}
+
+    @media(max-width:768px){main{grid-template-columns:1fr;padding:1rem}.results-section{padding:0 1rem}header{padding:1rem}.status-banner{flex-direction:column;align-items:flex-start;gap:.8rem}}
   </style>
 </head>
 <body>
 <header>
-  <div class="logo">🔍</div>
+  <div class="logo">⚖️</div>
   <div class="header-text">
-    <h1>Legal Metrology OCR</h1>
-    <p>Upload or capture product images to extract compliance data</p>
+    <h1>Legal Metrology Verification Service</h1>
+    <p>Automated Statutory Label Extraction &amp; Rule Compliance Auditing (Rules, 2011)</p>
   </div>
   <div class="header-right">
     <div class="health-dot" id="healthDot" title="Server health"></div>
     <span class="health-label" id="healthLabel">Checking…</span>
-    <a class="docs-link" href="/docs" target="_blank" rel="noopener">API Docs ↗</a>
+    <a class="docs-link" href="/docs" target="_blank" rel="noopener">Interactive Docs ↗</a>
   </div>
 </header>
 
@@ -137,26 +178,26 @@
   <div class="panel" id="uploadPanel">
     <div class="panel-header">
       <span class="icon">📁</span>
-      <h2>Upload Images</h2>
+      <h2>Upload Product Images</h2>
     </div>
     <div class="panel-body">
-      <!-- Single / Multi mode selector -->
       <div class="mode-row" id="modeRow">
-        <button class="mode-btn" id="modeSingle">Single image&nbsp;(/extract)</button>
-        <button class="mode-btn active" id="modeMulti">Multiple images&nbsp;(/extract/multi)</button>
+        <button class="mode-btn active" id="modeCheck">⚡ Compliance Audit (/v1/check)</button>
+        <button class="mode-btn" id="modeExtract">Extraction Only (/v1/extract)</button>
       </div>
+      
       <div class="drop-zone" id="dropZone">
         <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple />
-        <div class="drop-icon">🖼️</div>
-        <div class="drop-title">Drop images here</div>
-        <div class="drop-sub" id="dropSub">or click to browse · JPEG / PNG / WebP · Max 15 MB each · Up to 10 images</div>
+        <div class="drop-icon">📸</div>
+        <div class="drop-title">Drop packaging photos here</div>
+        <div class="drop-sub" id="dropSub">or click to browse · JPEG / PNG / WebP · Up to 10 photos</div>
       </div>
       <div class="file-list" id="fileList"></div>
-      <!-- Preprocessing toggle -->
+      
       <div class="preprocess-row">
         <div class="preprocess-label">
-          <strong>⚙️ Preprocessing</strong>
-          <span>CLAHE contrast + denoise (off by default — can split lines)</span>
+          <strong>⚙️ OpenCV Contrast Preprocessing</strong>
+          <span>CLAHE adaptive histogram equalization (defaults to OFF)</span>
         </div>
         <label class="toggle-wrap" title="Toggle preprocessing">
           <input type="checkbox" id="uploadPreprocess" />
@@ -164,9 +205,10 @@
           <span class="toggle-thumb"></span>
         </label>
       </div>
+
       <div style="display:flex;gap:.6rem;margin-top:auto">
         <button class="btn btn-ghost" id="clearUploadBtn" style="flex:0 0 auto" disabled>Clear</button>
-        <button class="btn btn-primary btn-full" id="extractUploadBtn" disabled>Extract Text</button>
+        <button class="btn btn-primary btn-full" id="extractUploadBtn" disabled>⚡ Run Compliance Audit</button>
       </div>
     </div>
   </div>
@@ -175,34 +217,28 @@
   <div class="panel" id="cameraPanel">
     <div class="panel-header">
       <span class="icon">📷</span>
-      <h2>Capture Images</h2>
+      <h2>Live Camera Capture</h2>
     </div>
     <div class="panel-body" style="min-height:420px">
-
       <!-- Idle -->
       <div id="camIdle">
         <div class="cam-idle-icon">📷</div>
-        <h3>Live Camera Capture</h3>
-        <p>Capture multiple sides of a product package.<br>Results are merged exactly like multi-image upload.</p>
-        <button class="btn btn-primary" id="startCamBtn">▶ Open Camera</button>
-        <p style="font-size:.74rem;color:var(--muted)">Camera access required · works on desktop &amp; mobile</p>
+        <h3 style="font-size:1rem;font-weight:600">Scan Product Package</h3>
+        <p style="font-size:.8rem;color:var(--muted)">Capture front, back, or side facets with your camera.<br>Evidence across photos is merged and audited together.</p>
+        <button class="btn btn-primary" id="startCamBtn">▶ Start Camera</button>
       </div>
 
       <!-- Active viewfinder -->
       <div id="camActive">
-        <!-- Video stream -->
         <div class="viewfinder-wrap" id="viewfinderWrap">
           <video id="camVideo" autoplay playsinline muted></video>
           <div class="vf-overlay"></div>
           <div class="vf-guide">
-            <div class="vf-corner tl"></div>
-            <div class="vf-corner tr"></div>
-            <div class="vf-corner bl"></div>
-            <div class="vf-corner br"></div>
+            <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
+            <div class="vf-corner bl"></div><div class="vf-corner br"></div>
           </div>
-          <div class="vf-label" id="vfLabel">Align product label within frame</div>
+          <div class="vf-label">Align product declaration within frame</div>
           <div class="flash-overlay" id="flashOverlay"></div>
-          <!-- Top bar -->
           <div class="vf-topbar">
             <button class="vf-icon-btn" id="closeCamBtn" title="Close camera">✕</button>
             <div style="display:flex;gap:.3rem">
@@ -212,64 +248,143 @@
           </div>
         </div>
 
-        <!-- Bottom bar -->
         <div class="vf-bottombar">
           <div class="captured-strip" id="capturedStrip">
-            <span class="cap-count" id="capCount">No captures yet</span>
+            <span class="cap-count">No captures</span>
           </div>
           <button class="shutter-btn" id="shutterBtn" title="Capture photo">
             <div class="shutter-inner"></div>
           </button>
-          <button class="scan-from-photo" id="scanFromPhotoBtn">🖼 Scan from photo</button>
+          <button class="scan-from-photo" id="scanFromPhotoBtn">🖼 Scan Photo</button>
           <input type="file" id="camGalleryInput" accept="image/jpeg,image/png,image/webp" multiple />
         </div>
 
-        <!-- Extract bar -->
         <div style="padding:.8rem 1.2rem;background:#090d16;display:none;flex-direction:column;gap:.65rem" id="camExtractBar">
-          <!-- Preprocessing toggle inside camera panel -->
           <div class="preprocess-row" style="background:#1a1f2e">
             <div class="preprocess-label">
               <strong>⚙️ Preprocessing</strong>
-              <span>CLAHE contrast + denoise</span>
+              <span>CLAHE contrast enhancement</span>
             </div>
-            <label class="toggle-wrap" title="Toggle preprocessing">
+            <label class="toggle-wrap">
               <input type="checkbox" id="camPreprocess" />
               <span class="toggle-track"></span>
               <span class="toggle-thumb"></span>
             </label>
           </div>
           <button class="btn btn-success btn-full" id="extractCamBtn">
-            🚀 Extract from <span id="camExtractCount">0</span> capture(s)
+            ⚡ Audit <span id="camExtractCount">0</span> Captured Photo(s)
           </button>
         </div>
       </div>
-
     </div>
   </div>
 </main>
 
-<!-- Results -->
+<!-- ── Results Section ── -->
 <div class="results-section" id="resultsSection" style="display:none">
   <div class="results-panel">
     <div class="results-header">
-      <span class="icon">📄</span>
-      <h2>Extraction Results</h2>
-      <span id="resultBadge" class="badge badge-blue" style="margin-left:.5rem"></span>
-      <button class="btn btn-ghost" id="copyResultBtn" style="margin-left:auto;padding:.35rem .8rem;font-size:.75rem">Copy JSON</button>
+      <span class="icon">📋</span>
+      <h2 id="resultTitle">Compliance Audit Results</h2>
+      <div class="view-tabs" id="viewTabs">
+        <button class="view-tab active" id="tabAudit">Visual Audit</button>
+        <button class="view-tab" id="tabMarkdown">Markdown</button>
+        <button class="view-tab" id="tabJson">Raw JSON</button>
+      </div>
+      <button class="btn btn-ghost" id="copyResultBtn" style="padding:.35rem .75rem;font-size:.75rem">Copy JSON</button>
     </div>
-    <div id="resultBody" class="placeholder">Results will appear here after extraction.</div>
+
+    <!-- Visual Dashboard Tab -->
+    <div id="auditDashboard" class="audit-container">
+      <div class="status-banner" id="statusBanner">
+        <div class="status-title-group">
+          <h3 id="statusTitle">Checking...</h3>
+          <p id="statusSubtitle">Statutory evaluation per Legal Metrology (Packaged Commodities) Rules, 2011</p>
+        </div>
+        <div class="metric-pills" id="metricPills"></div>
+      </div>
+
+      <div class="product-summary-card">
+        <div class="card-title">📦 Product Declarations Summary</div>
+        <div class="summary-grid" id="summaryGrid"></div>
+      </div>
+
+      <div class="card-title" style="margin-top:.4rem">⚖️ Statutory Rule Checks Breakdown (<span id="ruleCount">0</span> Rules Audited)</div>
+      <div class="rules-table-wrap">
+        <table class="rules-table">
+          <thead>
+            <tr>
+              <th style="width:110px">Status</th>
+              <th style="width:260px">Statutory Rule</th>
+              <th>Observed Finding &amp; Evidence</th>
+            </tr>
+          </thead>
+          <tbody id="rulesTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Markdown Tab -->
+    <div id="markdownView" style="display:none"></div>
+
+    <!-- Raw JSON Tab -->
+    <div id="codeView" style="display:none"></div>
   </div>
 </div>
 
 <canvas id="camCanvas" style="display:none"></canvas>
 
 <script>
-/* ── Upload panel ── */
-const fileInput       = document.getElementById('fileInput');
-const dropZone        = document.getElementById('dropZone');
-const fileListEl      = document.getElementById('fileList');
-const extractUploadBtn= document.getElementById('extractUploadBtn');
-const clearUploadBtn  = document.getElementById('clearUploadBtn');
+let currentMode = 'check'; // 'check' or 'extract'
+let activeTab = 'audit';
+let lastResponseData = null;
+let lastMarkdownText = '';
+
+const modeCheck = document.getElementById('modeCheck');
+const modeExtract = document.getElementById('modeExtract');
+const extractUploadBtn = document.getElementById('extractUploadBtn');
+
+modeCheck.addEventListener('click', () => {
+  currentMode = 'check';
+  modeCheck.classList.add('active');
+  modeExtract.classList.remove('active');
+  extractUploadBtn.textContent = uploadFiles.length ? `⚡ Audit ${uploadFiles.length} Image(s)` : '⚡ Run Compliance Audit';
+});
+
+modeExtract.addEventListener('click', () => {
+  currentMode = 'extract';
+  modeExtract.classList.add('active');
+  modeCheck.classList.remove('active');
+  extractUploadBtn.textContent = uploadFiles.length ? `Extract ${uploadFiles.length} Image(s)` : 'Extract Text Only';
+});
+
+/* Tabs */
+const tabAudit = document.getElementById('tabAudit');
+const tabMarkdown = document.getElementById('tabMarkdown');
+const tabJson = document.getElementById('tabJson');
+const auditDashboard = document.getElementById('auditDashboard');
+const markdownView = document.getElementById('markdownView');
+const codeView = document.getElementById('codeView');
+
+tabAudit.addEventListener('click', () => switchTab('audit'));
+tabMarkdown.addEventListener('click', () => switchTab('markdown'));
+tabJson.addEventListener('click', () => switchTab('json'));
+
+function switchTab(tab) {
+  activeTab = tab;
+  tabAudit.classList.toggle('active', tab === 'audit');
+  tabMarkdown.classList.toggle('active', tab === 'markdown');
+  tabJson.classList.toggle('active', tab === 'json');
+  auditDashboard.style.display = tab === 'audit' ? 'flex' : 'none';
+  markdownView.style.display = tab === 'markdown' ? 'block' : 'none';
+  codeView.style.display = tab === 'json' ? 'block' : 'none';
+}
+
+/* Upload Logic */
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const fileListEl = document.getElementById('fileList');
+const clearUploadBtn = document.getElementById('clearUploadBtn');
 let uploadFiles = [];
 
 function refreshUploadUI() {
@@ -282,18 +397,17 @@ function refreshUploadUI() {
   });
   const has = uploadFiles.length > 0;
   extractUploadBtn.disabled = !has;
-  clearUploadBtn.disabled   = !has;
-  extractUploadBtn.textContent = has ? `Extract from ${uploadFiles.length} image(s)` : 'Extract Text';
+  clearUploadBtn.disabled = !has;
+  if (currentMode === 'check') {
+    extractUploadBtn.textContent = has ? `⚡ Audit ${uploadFiles.length} Image(s)` : '⚡ Run Compliance Audit';
+  } else {
+    extractUploadBtn.textContent = has ? `Extract ${uploadFiles.length} Image(s)` : 'Extract Text Only';
+  }
 }
 
 function addUploadFiles(list) {
-  const isSingle = document.getElementById('modeSingle').classList.contains('active');
-  if (isSingle) {
-    if (list.length) uploadFiles = [list[0]];   // replace, don't accumulate
-  } else {
-    const rem = 10 - uploadFiles.length;
-    [...list].slice(0, rem).forEach(f => uploadFiles.push(f));
-  }
+  const rem = 10 - uploadFiles.length;
+  [...list].slice(0, rem).forEach(f => uploadFiles.push(f));
   refreshUploadUI();
 }
 
@@ -303,63 +417,37 @@ fileListEl.addEventListener('click', e => {
   uploadFiles.splice(Number(rm.dataset.i), 1); refreshUploadUI();
 });
 clearUploadBtn.addEventListener('click', () => { uploadFiles = []; refreshUploadUI(); });
-dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault(); dropZone.classList.remove('drag-over'); addUploadFiles(e.dataTransfer.files);
 });
+
 extractUploadBtn.addEventListener('click', () => {
   if (!uploadFiles.length) return;
   const form = new FormData();
-  const isSingle = document.getElementById('modeSingle').classList.contains('active');
+  uploadFiles.forEach(f => form.append('images', f, f.name));
   const preprocess = document.getElementById('uploadPreprocess').checked;
-  if (isSingle) {
-    // /extract only takes one file; use the first selected
-    form.append('image', uploadFiles[0], uploadFiles[0].name);
-    submitExtraction(form, `Extracted from ${uploadFiles[0].name}`, preprocess, true);
-  } else {
-    uploadFiles.forEach(f => form.append('images', f, f.name));
-    submitExtraction(form, `Extracted from ${uploadFiles.length} upload(s)`, preprocess, false);
-  }
+  submitRequest(form, preprocess);
 });
 
-/* ── Mode selector ── */
-const modeSingleBtn = document.getElementById('modeSingle');
-const modeMultiBtn  = document.getElementById('modeMulti');
-const fileInputEl   = document.getElementById('fileInput');
-const dropSubEl     = document.getElementById('dropSub');
-
-modeSingleBtn.addEventListener('click', () => {
-  modeSingleBtn.classList.add('active'); modeMultiBtn.classList.remove('active');
-  fileInputEl.removeAttribute('multiple');
-  dropSubEl.textContent = 'or click to browse · JPEG / PNG / WebP · Max 15 MB · Single image only';
-  // trim to 1 file if more are already selected
-  if (uploadFiles.length > 1) { uploadFiles = [uploadFiles[0]]; refreshUploadUI(); }
-});
-modeMultiBtn.addEventListener('click', () => {
-  modeMultiBtn.classList.add('active'); modeSingleBtn.classList.remove('active');
-  fileInputEl.setAttribute('multiple', '');
-  dropSubEl.textContent = 'or click to browse · JPEG / PNG / WebP · Max 15 MB each · Up to 10 images';
-});
-
-/* ── Camera panel ── */
-const startCamBtn     = document.getElementById('startCamBtn');
-const closeCamBtn     = document.getElementById('closeCamBtn');
-const torchBtn        = document.getElementById('torchBtn');
-const flipCamBtn      = document.getElementById('flipCamBtn');
-const shutterBtn      = document.getElementById('shutterBtn');
-const scanFromPhotoBtn= document.getElementById('scanFromPhotoBtn');
+/* Camera Logic */
+const startCamBtn = document.getElementById('startCamBtn');
+const closeCamBtn = document.getElementById('closeCamBtn');
+const flipCamBtn = document.getElementById('flipCamBtn');
+const torchBtn = document.getElementById('torchBtn');
+const shutterBtn = document.getElementById('shutterBtn');
+const scanFromPhotoBtn = document.getElementById('scanFromPhotoBtn');
 const camGalleryInput = document.getElementById('camGalleryInput');
-const extractCamBtn   = document.getElementById('extractCamBtn');
-const camExtractBar   = document.getElementById('camExtractBar');
+const extractCamBtn = document.getElementById('extractCamBtn');
+const camExtractBar = document.getElementById('camExtractBar');
 const camExtractCount = document.getElementById('camExtractCount');
-const capturedStrip   = document.getElementById('capturedStrip');
-const camVideo        = document.getElementById('camVideo');
-const camCanvas       = document.getElementById('camCanvas');
-const camIdle         = document.getElementById('camIdle');
-const camActive       = document.getElementById('camActive');
-const flashOverlay    = document.getElementById('flashOverlay');
-
+const capturedStrip = document.getElementById('capturedStrip');
+const camVideo = document.getElementById('camVideo');
+const camCanvas = document.getElementById('camCanvas');
+const camIdle = document.getElementById('camIdle');
+const camActive = document.getElementById('camActive');
+const flashOverlay = document.getElementById('flashOverlay');
 let stream = null, torchTrack = null, facingMode = 'environment', torchOn = false;
 let capturedBlobs = [];
 
@@ -375,17 +463,15 @@ async function openCamera() {
     camIdle.style.display = 'none';
     Object.assign(camActive.style, { display: 'flex', flexDirection: 'column', height: '100%' });
   } catch(err) {
-    alert('Camera error: ' + err.message + '\n\nAllow camera permissions and use HTTPS or localhost.');
+    alert('Camera error: ' + err.message);
   }
 }
-
 function stopCamera() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   camVideo.srcObject = null;
   camIdle.style.display = '';
   camActive.style.display = 'none';
 }
-
 closeCamBtn.addEventListener('click', stopCamera);
 flipCamBtn.addEventListener('click', async () => { facingMode = facingMode === 'environment' ? 'user' : 'environment'; await openCamera(); });
 torchBtn.addEventListener('click', async () => {
@@ -396,7 +482,6 @@ torchBtn.addEventListener('click', async () => {
   await torchTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
   torchBtn.style.color = torchOn ? '#fbbf24' : '';
 });
-
 shutterBtn.addEventListener('click', () => {
   if (!stream || capturedBlobs.length >= 10) return;
   camCanvas.width = camVideo.videoWidth; camCanvas.height = camVideo.videoHeight;
@@ -408,11 +493,10 @@ shutterBtn.addEventListener('click', () => {
     refreshStrip();
   }, 'image/jpeg', 0.92);
 });
-
 function refreshStrip() {
   capturedStrip.innerHTML = '';
   if (!capturedBlobs.length) {
-    capturedStrip.innerHTML = '<span class="cap-count">No captures yet</span>';
+    capturedStrip.innerHTML = '<span class="cap-count">No captures</span>';
     camExtractBar.style.display = 'none'; return;
   }
   capturedBlobs.forEach(({ url }, i) => {
@@ -423,94 +507,215 @@ function refreshStrip() {
   const cnt = document.createElement('span'); cnt.className = 'cap-count';
   cnt.textContent = `${capturedBlobs.length}/10`; capturedStrip.appendChild(cnt);
   camExtractCount.textContent = capturedBlobs.length;
-  camExtractBar.style.display = 'flex';  // must be flex (flex-direction:column set inline)
+  camExtractBar.style.display = 'flex';
 }
-
 capturedStrip.addEventListener('click', e => {
   const rm = e.target.closest('.cap-rm'); if (!rm) return;
   const i = Number(rm.dataset.i);
   URL.revokeObjectURL(capturedBlobs[i].url); capturedBlobs.splice(i, 1); refreshStrip();
 });
-
 scanFromPhotoBtn.addEventListener('click', () => camGalleryInput.click());
 camGalleryInput.addEventListener('change', () => {
   const rem = 10 - capturedBlobs.length;
   [...camGalleryInput.files].slice(0, rem).forEach(f => capturedBlobs.push({ blob: f, url: URL.createObjectURL(f) }));
   camGalleryInput.value = ''; refreshStrip();
 });
-
 extractCamBtn.addEventListener('click', () => {
   if (!capturedBlobs.length) return;
   const form = new FormData();
   capturedBlobs.forEach(({ blob }, i) => form.append('images', blob, `capture_${i+1}.jpg`));
   const preprocess = document.getElementById('camPreprocess').checked;
-  submitExtraction(form, `Extracted from ${capturedBlobs.length} camera capture(s)`, preprocess, false);
+  submitRequest(form, preprocess);
 });
 
-/* ── Shared extraction ── */
+/* Core Submission */
 const resultsSection = document.getElementById('resultsSection');
-const resultBody     = document.getElementById('resultBody');
-const resultBadge    = document.getElementById('resultBadge');
-const copyResultBtn  = document.getElementById('copyResultBtn');
+const statusBanner = document.getElementById('statusBanner');
+const statusTitle = document.getElementById('statusTitle');
+const metricPills = document.getElementById('metricPills');
+const summaryGrid = document.getElementById('summaryGrid');
+const rulesTableBody = document.getElementById('rulesTableBody');
+const ruleCount = document.getElementById('ruleCount');
 
-async function submitExtraction(formData, label, preprocessEnabled, singleMode = false) {
-  resultsSection.style.display = '';
-  resultBody.className = '';
-  resultBody.innerHTML = '<span style="color:var(--muted)">&#9203; Processing…</span>';
-  resultBadge.className = 'badge badge-yellow'; resultBadge.textContent = 'Running';
+async function submitRequest(formData, preprocessEnabled) {
+  resultsSection.style.display = 'block';
   extractUploadBtn.disabled = true; extractCamBtn.disabled = true;
+  statusTitle.innerHTML = '⏳ Evaluating...';
+  statusBanner.className = 'status-banner';
+  metricPills.innerHTML = '';
+  rulesTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:2rem">Running OCR inference &amp; statutory rules engine…</td></tr>';
+  summaryGrid.innerHTML = '';
+  codeView.textContent = 'Processing request...';
+  markdownView.textContent = 'Generating report...';
+  
+  resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   try {
-    const base = singleMode ? '/extract' : '/extract/multi';
-   const url  = `${base}?preprocess_enabled=${preprocessEnabled}`;
-    const resp = await fetch(url, { method: 'POST', body: formData });
+    const endpoint = currentMode === 'check' 
+      ? `/v1/check?preprocess_enabled=${preprocessEnabled}`
+      : `/v1/extract/multi?preprocess_enabled=${preprocessEnabled}`;
+      
+    const resp = await fetch(endpoint, { method: 'POST', body: formData });
     const data = await resp.json();
+    lastResponseData = data;
+    codeView.textContent = JSON.stringify(data, null, 2);
+
     if (!resp.ok) {
-      resultBody.textContent = `Error ${resp.status}: ${data.detail ?? JSON.stringify(data)}`;
-      resultBadge.className = 'badge badge-red'; resultBadge.textContent = `Error ${resp.status}`;
+      statusTitle.textContent = `Error ${resp.status}`;
+      statusBanner.className = 'status-banner status-non_compliant';
+      rulesTableBody.innerHTML = `<tr><td colspan="3" style="color:var(--danger);padding:1rem">${data.detail ?? JSON.stringify(data)}</td></tr>`;
+      return;
+    }
+
+    if (currentMode === 'check') {
+      renderComplianceDashboard(data);
+      // Fetch markdown version in background for the Markdown tab
+      fetchMarkdownReport(formData, preprocessEnabled);
     } else {
-      resultBody.textContent = JSON.stringify(data, null, 2);
-      resultBadge.className = 'badge badge-green'; resultBadge.textContent = label;
+      renderExtractionDashboard(data);
     }
   } catch(err) {
-    resultBody.textContent = 'Network error: ' + err.message;
-    resultBadge.className = 'badge badge-red'; resultBadge.textContent = 'Network error';
+    statusTitle.textContent = 'Network Error';
+    statusBanner.className = 'status-banner status-non_compliant';
+    rulesTableBody.innerHTML = `<tr><td colspan="3" style="color:var(--danger);padding:1rem">${err.message}</td></tr>`;
   } finally {
     extractUploadBtn.disabled = !uploadFiles.length;
     extractCamBtn.disabled = !capturedBlobs.length;
-    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
 
+async function fetchMarkdownReport(formData, preprocessEnabled) {
+  try {
+    const resp = await fetch(`/v1/check?format=markdown&preprocess_enabled=${preprocessEnabled}`, {
+      method: 'POST', body: formData
+    });
+    if (resp.ok) {
+      lastMarkdownText = await resp.text();
+      markdownView.textContent = lastMarkdownText;
+    }
+  } catch {}
+}
+
+function renderComplianceDashboard(report) {
+  const comp = report.compliance;
+  const sum = comp.summary;
+  const prod = report.productSummary;
+
+  // Status Banner
+  const status = comp.overallStatus;
+  statusBanner.className = `status-banner status-${status}`;
+  
+  let statusIcon = '✓';
+  let statusLabel = 'COMPLIANT';
+  if (status === 'non_compliant') { statusIcon = '✕'; statusLabel = 'NON-COMPLIANT'; }
+  else if (status === 'needs_review') { statusIcon = '⚠'; statusLabel = 'NEEDS REVIEW'; }
+
+  statusTitle.innerHTML = `${statusIcon} ${statusLabel}`;
+
+  // Metrics
+  metricPills.innerHTML = `
+    <div class="metric-pill"><strong>${sum.totalChecks}</strong> Checks</div>
+    <div class="metric-pill" style="color:var(--success)"><strong>${sum.passed}</strong> Passed</div>
+    <div class="metric-pill" style="color:${sum.failed ? 'var(--danger)' : 'var(--muted)'}"><strong>${sum.failed}</strong> Failed</div>
+    <div class="metric-pill" style="color:${sum.blocking ? 'var(--danger)' : 'var(--muted)'}"><strong>${sum.blocking}</strong> Blocking</div>
+    <div class="metric-pill" style="color:${sum.warnings ? 'var(--warning)' : 'var(--muted)'}"><strong>${sum.warnings}</strong> Warnings</div>
+  `;
+
+  // Product Summary Cards
+  const summaryFields = [
+    { label: 'Commodity', val: prod.commodityName || prod.commodityCategory || '—' },
+    { label: 'Net Quantity', val: prod.netQuantity || '—' },
+    { label: 'MRP', val: prod.mrp || '—' },
+    { label: 'Manufacturer', val: prod.manufacturerName || '—' },
+    { label: 'Mfg / Packing Date', val: prod.manufacturingDate || prod.packingDate || '—' },
+    { label: 'Expiry Date', val: prod.expiryDate || '—' },
+    { label: 'Batch No.', val: prod.batchNumber || '—' },
+    { label: 'Consumer Care', val: prod.consumerCareContact || '—' },
+  ];
+
+  summaryGrid.innerHTML = summaryFields.map(f => `
+    <div class="summary-item">
+      <div class="label">${f.label}</div>
+      <div class="val">${f.val}</div>
+    </div>
+  `).join('');
+
+  // Rules Table
+  ruleCount.textContent = comp.ruleResults.length;
+  rulesTableBody.innerHTML = comp.ruleResults.map(r => {
+    let badgeClass = 'rule-pass';
+    let badgeText = '✓ PASS';
+    if (r.severity === 'needs_review') {
+      badgeClass = 'rule-review';
+      badgeText = '⚠ REVIEW';
+    } else if (!r.passed) {
+      badgeClass = 'rule-fail';
+      badgeText = '✕ FAIL';
+    }
+
+    const sevClass = `sev-${r.severity}`;
+
+    return `
+      <tr>
+        <td>
+          <span class="rule-badge ${badgeClass}">${badgeText}</span><br>
+          <span class="severity-tag ${sevClass}">${r.severity}</span>
+        </td>
+        <td>
+          <strong style="color:#f1f5f9;font-size:.82rem">${r.description || r.ruleId}</strong>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">${r.ruleReference}</div>
+        </td>
+        <td>
+          <div style="color:${r.passed ? '#cbd5e1' : '#fca5a5'};font-weight:500">${r.message}</div>
+          ${r.evidenceValue ? `<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">Evidence inspected: <code>${r.evidenceValue}</code></div>` : ''}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderExtractionDashboard(ext) {
+  statusBanner.className = 'status-banner status-compliant';
+  statusTitle.innerHTML = '✓ Extraction Finished';
+  metricPills.innerHTML = `<div class="metric-pill"><strong>${ext.rawOCR.length}</strong> OCR Lines</div>`;
+  summaryGrid.innerHTML = `
+    <div class="summary-item"><div class="label">Commodity</div><div class="val">${ext.commodity.name || ext.commodity.category || '—'}</div></div>
+    <div class="summary-item"><div class="label">Net Qty</div><div class="val">${ext.netQuantity.rawValue || '—'}</div></div>
+    <div class="summary-item"><div class="label">MRP</div><div class="val">${ext.mrp.raw || (ext.mrp.value ? '₹'+ext.mrp.value : '—')}</div></div>
+    <div class="summary-item"><div class="label">Manufacturer</div><div class="val">${ext.manufacturer.name || '—'}</div></div>
+  `;
+  rulesTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:1.5rem">Extraction-only mode selected. Switch to "Compliance Audit" mode to run statutory rules.</td></tr>';
+}
+
+/* Copy Result Button */
+const copyResultBtn = document.getElementById('copyResultBtn');
 copyResultBtn.addEventListener('click', () => {
-  const t = resultBody.textContent; if (!t) return;
-  navigator.clipboard.writeText(t).then(() => {
+  const text = activeTab === 'markdown' ? lastMarkdownText : JSON.stringify(lastResponseData, null, 2);
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
     copyResultBtn.textContent = '✓ Copied!';
-    setTimeout(() => copyResultBtn.textContent = 'Copy JSON', 1800);
+    setTimeout(() => copyResultBtn.textContent = 'Copy ' + (activeTab === 'markdown' ? 'Markdown' : 'JSON'), 1800);
   });
 });
 
-window.addEventListener('beforeunload', () => {
-  capturedBlobs.forEach(c => URL.revokeObjectURL(c.url)); stopCamera();
-});
-
-/* ── Health check ── */
+/* Health ping */
 async function pingHealth() {
-  const dot   = document.getElementById('healthDot');
+  const dot = document.getElementById('healthDot');
   const label = document.getElementById('healthLabel');
   try {
-    const r = await fetch('/health');
+    const r = await fetch('/v1/ready');
     const d = await r.json();
-    if (r.ok && d.status === 'ok') {
-      dot.className = 'health-dot ok'; label.textContent = 'Server online';
+    if (r.ok && d.status === 'ready') {
+      dot.className = 'health-dot ok'; label.textContent = 'Model Loaded & Ready';
     } else {
-      dot.className = 'health-dot err'; label.textContent = 'Server error';
+      dot.className = 'health-dot ok'; label.textContent = 'Service Online';
     }
   } catch {
     dot.className = 'health-dot err'; label.textContent = 'Unreachable';
   }
 }
 pingHealth();
-setInterval(pingHealth, 30000);  // re-check every 30 s
+setInterval(pingHealth, 20000);
 </script>
 </body>
 </html>

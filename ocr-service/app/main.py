@@ -75,6 +75,24 @@ async def log_and_time_requests(request: Request, call_next):
     return response
 
 
+# Friendly validation error handler for file uploads (e.g. from Swagger UI)
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    for err in exc.errors():
+        if err.get("type") == "value_error" and "Expected UploadFile" in str(err.get("msg", "")):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "detail": "No image uploaded. Please select a valid image file (JPEG, PNG, or WebP) before submitting."
+                },
+            )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
 # --- v1 Stable Versioned API Router ---
 v1_router = APIRouter(prefix="/v1")
 
