@@ -1,0 +1,474 @@
+﻿const fs = require('fs');
+const path = require('path');
+
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+// 1. src/lib/utils.ts
+ensureDir('src/lib');
+fs.writeFileSync('src/lib/utils.ts', `import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+`);
+
+// 2. src/types/index.ts
+ensureDir('src/types');
+fs.writeFileSync('src/types/index.ts', `export type ReportStatus = 'compliant' | 'deficit' | 'review';
+
+export interface InspectionReport {
+  id: string;
+  reportCode: string;
+  productName: string;
+  sku: string;
+  location: string;
+  zone: string;
+  officerName: string;
+  officerBadge: string;
+  status: ReportStatus;
+  timestamp: string;
+  dateStr: string;
+  findings: string;
+  digitalSignature: string;
+  mrp?: string;
+  netQty?: string;
+  mfgDate?: string;
+  manufacturer?: string;
+  consumerCare?: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  isoDate: string;
+  officerName: string;
+  officerInitials: string;
+  badgeId: string;
+  eventType: 'signin' | 'signout-manual' | 'signout-auto' | 'renew';
+  eventLabel: string;
+  deviceModel: string;
+  deviceMeta: string;
+  locationNode: string;
+  coordinates: string;
+  hashSeal: string;
+}
+
+export interface DeficitCategory {
+  id: string;
+  title: string;
+  rule: string;
+  percentage: string;
+  packCount: string;
+  severity: 'high' | 'medium' | 'low';
+}
+
+export interface RegionalRecord {
+  id: string;
+  zone: string;
+  totalPackages: string;
+  violations: string;
+  deficitRate: string;
+  isHighDeficit: boolean;
+}
+
+export interface MonthTrend {
+  month: string;
+  passRate: number;
+  deficitRate: number;
+  total: number;
+}
+`);
+
+// 3. src/data/mockData.ts
+ensureDir('src/data');
+fs.writeFileSync('src/data/mockData.ts', `import { InspectionReport, AuditLogEntry, DeficitCategory, RegionalRecord, MonthTrend } from '@/types';
+
+export const ADMIN_STATS = {
+  totalInspections: '3,412',
+  inspectionsTrend: '+18.4% this month',
+  activeOfficers: '28',
+  officersSub: 'Deployed across 6 zones',
+  overallCompliance: '85.2%',
+  complianceSub: 'Statutory pass rate',
+  deficitRate: '14.8%',
+  deficitCount: '505 non-compliant packs',
+};
+
+export const MONTHLY_TRENDS: MonthTrend[] = [
+  { month: 'Jan', passRate: 81.6, deficitRate: 18.4, total: 498 },
+  { month: 'Feb', passRate: 82.9, deficitRate: 17.1, total: 515 },
+  { month: 'Mar', passRate: 84.1, deficitRate: 15.9, total: 542 },
+  { month: 'Apr', passRate: 85.0, deficitRate: 15.0, total: 580 },
+  { month: 'May', passRate: 86.4, deficitRate: 13.6, total: 612 },
+  { month: 'Jun', passRate: 87.2, deficitRate: 12.8, total: 645 },
+];
+
+export const DEFICIT_CATEGORIES: DeficitCategory[] = [
+  {
+    id: '1',
+    title: 'Font & Letter Height',
+    rule: 'Rule 14 • 42% of deficits',
+    percentage: '42%',
+    packCount: '198 Packs',
+    severity: 'high',
+  },
+  {
+    id: '2',
+    title: 'MRP Declaration Format',
+    rule: 'Rule 6(1)(e) • 28% of deficits',
+    percentage: '28%',
+    packCount: '132 Packs',
+    severity: 'high',
+  },
+  {
+    id: '3',
+    title: 'Importer & Origin Details',
+    rule: 'Rule 2(h) • 18% of deficits',
+    percentage: '18%',
+    packCount: '84 Packs',
+    severity: 'medium',
+  },
+  {
+    id: '4',
+    title: 'Tare Weight & Net Quantity',
+    rule: 'Rule 12 • 12% of deficits',
+    percentage: '12%',
+    packCount: '91 Packs',
+    severity: 'medium',
+  },
+];
+
+export const REGIONAL_RECORDS: RegionalRecord[] = [
+  {
+    id: 'r1',
+    zone: 'North NCR • Depot 01-A',
+    totalPackages: '1,120',
+    violations: '198',
+    deficitRate: '17.6%',
+    isHighDeficit: true,
+  },
+  {
+    id: 'r2',
+    zone: 'West Godowns • Bhiwandi Central',
+    totalPackages: '840',
+    violations: '132',
+    deficitRate: '15.7%',
+    isHighDeficit: true,
+  },
+  {
+    id: 'r3',
+    zone: 'South Ports • JNPT / Nhava Sheva',
+    totalPackages: '620',
+    violations: '61',
+    deficitRate: '9.8%',
+    isHighDeficit: false,
+  },
+  {
+    id: 'r4',
+    zone: 'East Industrial Corridor • Asansol',
+    totalPackages: '450',
+    violations: '71',
+    deficitRate: '15.7%',
+    isHighDeficit: true,
+  },
+  {
+    id: 'r5',
+    zone: 'Central Grain Mandi • Indore',
+    totalPackages: '382',
+    violations: '43',
+    deficitRate: '11.2%',
+    isHighDeficit: false,
+  },
+];
+
+export const MOCK_REPORTS: InspectionReport[] = [
+  {
+    id: '1',
+    reportCode: '#REP-88402',
+    productName: 'NourishGold Almond Beverage 1000ml',
+    sku: 'SKU #8901030882190',
+    location: 'North Delhi Depot',
+    zone: 'Zone Z-04',
+    officerName: 'S.K. Ranganathan',
+    officerBadge: 'LM-DL-88392',
+    status: 'deficit',
+    timestamp: 'Today, 14:12 IST',
+    dateStr: '14-MAR-2025',
+    findings: 'Unit Sale Price (USP) omitted contrary to Rule 6(1)(e). Net Quantity numeral height (1.85 mm) violates mandatory minimum threshold (≥ 4.0 mm) under Rule 14 Table-I of Legal Metrology (Packaged Commodities) Rules, 2011.',
+    digitalSignature: 'SHA-256: 4e9a8f21c830...b920 (Verified)',
+    mrp: '₹ 295.00',
+    netQty: '1000 ml',
+    mfgDate: '10/02/2025',
+    manufacturer: 'Nourish Agro Foods Pvt Ltd, Delhi-110033',
+    consumerCare: 'care@nourishgold.in | 1800-200-8844',
+  },
+  {
+    id: '2',
+    reportCode: '#REP-88401',
+    productName: 'VedaSpices Whole Malabar Black Pepper 100g',
+    sku: 'SKU #8902041009123',
+    location: 'Narela Wholesale Mandi',
+    zone: 'Zone Z-01',
+    officerName: 'Ananya Patnaik',
+    officerBadge: 'LM-DL-90411',
+    status: 'compliant',
+    timestamp: 'Today, 13:48 IST',
+    dateStr: '14-MAR-2025',
+    findings: 'All mandatory packaging declarations present and verified in accordance with Legal Metrology (Packaged Commodities) Rules, 2011. Numeral heights and MRP clarity conform to standards.',
+    digitalSignature: 'SHA-256: 8a1b490ce39...f892 (Verified)',
+    mrp: '₹ 140.00 (₹ 1.40 / g)',
+    netQty: '100 g',
+    mfgDate: '15/01/2025',
+    manufacturer: 'Veda Spices & Herbs Ltd, Cochin-682001',
+    consumerCare: 'support@vedaspices.com | 1800-111-9988',
+  },
+  {
+    id: '3',
+    reportCode: '#REP-88398',
+    productName: 'GlacierDrop Ultra Hydration Soda 500ml',
+    sku: 'SKU #8903348128911',
+    location: 'Okhla Phase II',
+    zone: 'Zone Z-04',
+    officerName: 'Tenzing Jamatia',
+    officerBadge: 'LM-DL-74129',
+    status: 'review',
+    timestamp: 'Today, 11:30 IST',
+    dateStr: '14-MAR-2025',
+    findings: 'Best Before date declaration partially smudged on thermal inkjet print line. Secondary inspection recommended to verify legibility across retail batches.',
+    digitalSignature: 'SHA-256: 3c91d84b2...1e90 (Pending Lab Check)',
+    mrp: '₹ 45.00',
+    netQty: '500 ml',
+    mfgDate: '01/03/2025',
+    manufacturer: 'Glacier Beverages Corp, Greater Noida',
+    consumerCare: '1800-500-1234',
+  },
+  {
+    id: '4',
+    reportCode: '#REP-88392',
+    productName: 'SunPure Cold-Pressed Mustard Oil 1L',
+    sku: 'SKU #8904512903810',
+    location: 'Gurugram Logistics Hub',
+    zone: 'Zone HR-02',
+    officerName: 'Priya Sundaram',
+    officerBadge: 'LM-KA-40192',
+    status: 'compliant',
+    timestamp: 'Today, 10:15 IST',
+    dateStr: '14-MAR-2025',
+    findings: 'Full statutory compliance verified. Tare weight accuracy certified on calibrated class II balance. Font dimensions exceed Rule 14 requirements.',
+    digitalSignature: 'SHA-256: 91ab2093...77fa (Verified)',
+    mrp: '₹ 190.00',
+    netQty: '1 L (910 g)',
+    mfgDate: '20/02/2025',
+    manufacturer: 'SunPure Agro Mills, Alwar, Rajasthan',
+    consumerCare: 'feedback@sunpureoils.in',
+  },
+  {
+    id: '5',
+    reportCode: '#REP-88385',
+    productName: 'NutroPure Raw Cashew 200g',
+    sku: 'SKU #8901030894210',
+    location: 'North Delhi Depot',
+    zone: 'Zone Z-04',
+    officerName: 'Vikramaditya Katoch',
+    officerBadge: 'LM-HR-22081',
+    status: 'deficit',
+    timestamp: 'Yesterday, 16:40 IST',
+    dateStr: '13-MAR-2025',
+    findings: 'Net weight deficit observed: Mean package weight 191.2g against declared 200g (-4.4% deficit). Exceeds Maximum Permissible Error threshold of 4.5g (2.25%) under Fifth Schedule.',
+    digitalSignature: 'SHA-256: ff32194a...66d2 (Verified)',
+    mrp: '₹ 320.00',
+    netQty: '200 g',
+    mfgDate: '05/02/2025',
+    manufacturer: 'NutroPure Dry Fruits Co, Delhi',
+    consumerCare: 'support@nutropure.in',
+  },
+  {
+    id: '6',
+    reportCode: '#REP-88399',
+    productName: 'VedaSpices Black Pepper 100g',
+    sku: 'Batch: VED-992-B',
+    location: 'Wholesale Depot 3',
+    zone: 'Zone Z-02',
+    officerName: 'S.K. Ranganathan',
+    officerBadge: 'LM-DL-88392',
+    status: 'compliant',
+    timestamp: 'Yesterday, 17:45 IST',
+    dateStr: '13-MAR-2025',
+    findings: 'Standard batch verification conducted. Net quantity, MRP inclusion, and packaging dimensions adhere strictly to statutory provisions.',
+    digitalSignature: 'SHA-256: b104c99a...331b (Verified)',
+  },
+  {
+    id: '7',
+    reportCode: '#REP-88388',
+    productName: 'NutroPure Cashew 200g',
+    sku: 'UPC: 890123456789',
+    location: 'HyperMart Sec 14',
+    zone: 'Zone Z-03',
+    officerName: 'S.K. Ranganathan',
+    officerBadge: 'LM-DL-88392',
+    status: 'compliant',
+    timestamp: 'Yesterday, 11:30 IST',
+    dateStr: '13-MAR-2025',
+    findings: 'Retail display shelf audit completed. All declarations intact, clear contrast, correct manufacturer and customer care details.',
+    digitalSignature: 'SHA-256: d84091ab...009c (Verified)',
+  },
+  {
+    id: '8',
+    reportCode: '#REP-88371',
+    productName: 'GlacierDrop Soda 500ml',
+    sku: 'Batch: GL-1004-9',
+    location: 'Corner Store 2',
+    zone: 'Zone Z-01',
+    officerName: 'S.K. Ranganathan',
+    officerBadge: 'LM-DL-88392',
+    status: 'review',
+    timestamp: '14 Mar, 09:20 IST',
+    dateStr: '14-MAR-2025',
+    findings: 'Batch barcode unreadable by optical scanner. Physical numeral markings legible. Forwarded for barcode compliance review.',
+    digitalSignature: 'SHA-256: a91823...55cc (Pending)',
+  },
+  {
+    id: '9',
+    reportCode: '#REP-88360',
+    productName: 'SunPure Cold-Pressed Mustard Oil 1L',
+    sku: 'SKU #8904512903810',
+    location: 'Okhla Phase II',
+    zone: 'Zone Z-04',
+    officerName: 'S.K. Ranganathan',
+    officerBadge: 'LM-DL-88392',
+    status: 'compliant',
+    timestamp: '13 Mar, 16:10 IST',
+    dateStr: '13-MAR-2025',
+    findings: 'Wholesale lot verified on terminal. Standard declaration guidelines satisfied.',
+    digitalSignature: 'SHA-256: 77a01b...990d (Verified)',
+  }
+];
+
+export const MOCK_AUDIT_LOGS: AuditLogEntry[] = [
+  {
+    id: 'a1',
+    timestamp: 'Today 14:02:18',
+    isoDate: '14-MAR-2025 UTC+05:30',
+    officerName: 'S.K. Ranganathan',
+    officerInitials: 'SR',
+    badgeId: 'LM-DL-88392',
+    eventType: 'signin',
+    eventLabel: 'Sign-in Successful',
+    deviceModel: 'Zebra TC57 Handheld',
+    deviceMeta: 'Android 13 • SecPatch: FEB-2025',
+    locationNode: 'Okhla Phase II Depot Node DL-04',
+    coordinates: '28.5355° N, 77.2732° E',
+    hashSeal: 'sha256:7a9e...4b1c',
+  },
+  {
+    id: 'a2',
+    timestamp: 'Today 13:40:05',
+    isoDate: '14-MAR-2025 UTC+05:30',
+    officerName: 'Ananya Patnaik',
+    officerInitials: 'AP',
+    badgeId: 'LM-DL-90411',
+    eventType: 'signin',
+    eventLabel: 'Sign-in Successful',
+    deviceModel: 'Samsung Galaxy Tab Active4',
+    deviceMeta: 'Knox 3.9 • Biometric Verified',
+    locationNode: 'Narela Wholesale Mandi Node DL-01',
+    coordinates: '28.8526° N, 77.0932° E',
+    hashSeal: 'sha256:5e32...91ab',
+  },
+  {
+    id: 'a3',
+    timestamp: 'Today 12:15:44',
+    isoDate: '14-MAR-2025 UTC+05:30',
+    officerName: 'Tenzing Jamatia',
+    officerInitials: 'TJ',
+    badgeId: 'LM-DL-74129',
+    eventType: 'renew',
+    eventLabel: 'Token Renewal',
+    deviceModel: 'Zebra TC57 Handheld',
+    deviceMeta: 'ECDSA Key Roll • Session +4h',
+    locationNode: 'Kirti Nagar Storage Yard DL-07',
+    coordinates: '28.6511° N, 77.1352° E',
+    hashSeal: 'sha256:2d18...77fa',
+  },
+  {
+    id: 'a4',
+    timestamp: 'Today 10:55:02',
+    isoDate: '14-MAR-2025 UTC+05:30',
+    officerName: 'Vikramaditya Katoch',
+    officerInitials: 'VK',
+    badgeId: 'LM-HR-22081',
+    eventType: 'signout-manual',
+    eventLabel: 'Sign-out (Manual)',
+    deviceModel: 'Toughpad FZ-G1 Rugged',
+    deviceMeta: 'Windows 11 IoT Enterprise',
+    locationNode: 'Gurugram Sector 18 Logistics HR-02',
+    coordinates: '28.4901° N, 77.0712° E',
+    hashSeal: 'sha256:bb01...33d2',
+  },
+  {
+    id: 'a5',
+    timestamp: 'Today 09:30:11',
+    isoDate: '14-MAR-2025 UTC+05:30',
+    officerName: 'Priya Sundaram',
+    officerInitials: 'PS',
+    badgeId: 'LM-KA-40192',
+    eventType: 'signin',
+    eventLabel: 'Sign-in Successful',
+    deviceModel: 'Samsung Galaxy Tab Active4',
+    deviceMeta: 'Cellular Handshake • Airtel APN',
+    locationNode: 'Yeshwanthpur APMC Yard KA-01',
+    coordinates: '13.0234° N, 77.5489° E',
+    hashSeal: 'sha256:99f4...661a',
+  },
+  {
+    id: 'a6',
+    timestamp: 'Today 08:45:19',
+    isoDate: '14-MAR-2025 UTC+05:30',
+    officerName: 'Devraj Banerjee',
+    officerInitials: 'DB',
+    badgeId: 'LM-WB-11009',
+    eventType: 'signin',
+    eventLabel: 'Sign-in Successful',
+    deviceModel: 'Apple iPad Pro 11" (Cellular)',
+    deviceMeta: 'iPadOS 17.4 • MDM Supervised',
+    locationNode: 'Kolkata Dock Freight Terminal WB-03',
+    coordinates: '22.5218° N, 88.3091° E',
+    hashSeal: 'sha256:4c81...09e2',
+  },
+  {
+    id: 'a7',
+    timestamp: 'Yesterday 17:10:00',
+    isoDate: '13-MAR-2025 UTC+05:30',
+    officerName: 'S.K. Ranganathan',
+    officerInitials: 'SR',
+    badgeId: 'LM-DL-88392',
+    eventType: 'signout-auto',
+    eventLabel: 'Sign-out (Automatic)',
+    deviceModel: 'Zebra TC57 Handheld',
+    deviceMeta: 'Geofence Boundary Exit Timeout',
+    locationNode: 'Delhi South Zonal HQ Node DL-00',
+    coordinates: '28.5521° N, 77.2155° E',
+    hashSeal: 'sha256:12c0...ff88',
+  },
+  {
+    id: 'a8',
+    timestamp: 'Yesterday 16:42:33',
+    isoDate: '13-MAR-2025 UTC+05:30',
+    officerName: 'Manish Chouhan',
+    officerInitials: 'MC',
+    badgeId: 'LM-MH-51920',
+    eventType: 'signin',
+    eventLabel: 'Sign-in Successful',
+    deviceModel: 'Samsung Galaxy Tab Active4',
+    deviceMeta: 'GPS HDOP: 0.82 • Authenticated',
+    locationNode: 'Navi Mumbai Godown Node MH-01',
+    coordinates: '19.0760° N, 72.8777° E',
+    hashSeal: 'sha256:3b99...a107',
+  }
+];
+`);
+
+console.log('Setup 1 complete');
