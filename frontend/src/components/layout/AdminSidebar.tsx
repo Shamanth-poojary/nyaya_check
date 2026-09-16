@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { logoutUser } from '@/lib/api';
 
 const navItems = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: 'space_dashboard' },
@@ -14,6 +15,14 @@ const navItems = [
 
 export const AdminSidebar: React.FC = () => {
   const pathname = usePathname();
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // proceed with client navigation to /login
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-full w-72 bg-surface-container-low border-r border-outline-variant/40 z-50 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.02)]">
@@ -73,6 +82,7 @@ export const AdminSidebar: React.FC = () => {
         </div>
         <Link
           href="/login"
+          onClick={handleLogout}
           className="w-full flex items-center justify-center gap-space-xs py-2 px-space-sm rounded-lg border border-outline-variant/60 text-on-surface-variant hover:text-error hover:bg-error-container/20 hover:border-error/30 transition-all font-body-sm text-body-sm"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>

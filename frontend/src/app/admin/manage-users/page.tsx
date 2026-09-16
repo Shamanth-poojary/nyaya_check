@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Toast } from '@/components/ui/Toast';
 
@@ -94,13 +95,13 @@ export default function ManageUsersPage() {
             Gazetted inspector accounts, device certificate handshakes, and zonal field assignments.
           </p>
         </div>
-        <button
-          onClick={() => triggerToast('Officer enrollment modal dispatched')}
+        <Link
+          href="/register"
           className="inline-flex items-center gap-1.5 px-space-md py-2.5 rounded-lg bg-primary text-on-primary font-body-sm text-body-sm font-semibold hover:bg-primary-container transition-colors shadow-sm cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">person_add</span>
           <span>Enroll New Officer</span>
-        </button>
+        </Link>
       </div>
 
       <div className="flex items-center justify-between gap-4">

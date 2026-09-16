@@ -1,0 +1,2 @@
+-- Migration 002: Deprecated (Password reset tokens are no longer used)
+-- Direct email + new password reset is used instead.

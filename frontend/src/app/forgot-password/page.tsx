@@ -3,39 +3,55 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loginUser } from '@/lib/api';
+import { forgotPassword } from '@/lib/api';
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleLogin = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (!email || !password) {
-      setErrorMessage('Please enter both email and password.');
+    if (!email.trim()) {
+      setErrorMessage('Please enter your email address.');
+      return;
+    }
+
+    if (!newPassword) {
+      setErrorMessage('Please enter your new password.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setErrorMessage('New password must be at least 6 characters long.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const res = await loginUser(email, password);
+      const res = await forgotPassword(email.trim(), newPassword);
       setIsLoading(false);
-
-      if (res.user?.role === 'admin') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/inspector/new-scan');
-      }
+      setSuccessMessage(res.message || 'Password updated successfully! Redirecting to sign in...');
+      setTimeout(() => {
+        router.push('/login');
+      }, 1500);
     } catch (err: any) {
       setIsLoading(false);
-      setErrorMessage(err.message || 'Invalid email or password.');
+      setErrorMessage(err.message || 'Could not update password. Please check your email.');
     }
   };
 
@@ -52,16 +68,10 @@ export default function LoginPage() {
           </Link>
           <div className="flex items-center gap-4">
             <Link
-              href="/register"
-              className="text-primary hover:text-primary-container text-body-sm font-semibold transition-colors"
-            >
-              Register
-            </Link>
-            <Link
-              href="/"
+              href="/login"
               className="text-on-surface-variant hover:text-on-surface text-body-sm font-medium transition-colors"
             >
-              Home
+              Sign In
             </Link>
           </div>
         </div>
@@ -75,67 +85,54 @@ export default function LoginPage() {
             <div className="flex flex-col items-center text-center mb-space-lg">
               <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-space-sm border border-outline-variant/30">
                 <span className="material-symbols-outlined text-on-surface text-[24px]">
-                  lock
+                  key
                 </span>
               </div>
               <h1 className="font-headline-md text-headline-md text-on-surface tracking-tight font-semibold">
-                Sign In
+                Forgot Password
               </h1>
               <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-                Enter your details to sign in to your account
+                Enter your email address and your new password to update your account
               </p>
             </div>
 
             {/* Form Card */}
             <div className="w-full bg-surface-container-lowest rounded-xl p-space-xl shadow-sm relative border border-outline-variant/40">
-              <form className="flex flex-col gap-space-md" onSubmit={handleLogin}>
+              <form className="flex flex-col gap-space-md" onSubmit={handleSubmit}>
                 {/* Email */}
                 <div className="flex flex-col gap-space-xs">
                   <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="email">
                     Email Address
                   </label>
-                  <div className="relative flex items-center">
-                    <input
-                      autoComplete="email"
-                      className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
-                      id="email"
-                      name="email"
-                      placeholder="e.g. name@example.com"
-                      required
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                    <span className="material-symbols-outlined absolute right-3 text-on-surface-variant text-[20px] pointer-events-none">
-                      mail
-                    </span>
-                  </div>
+                  <input
+                    autoComplete="email"
+                    className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
+                    id="email"
+                    name="email"
+                    placeholder="e.g. user@example.com"
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
 
-                {/* Password */}
+                {/* New Password */}
                 <div className="flex flex-col gap-space-xs">
-                  <div className="flex items-center justify-between">
-                    <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="password">
-                      Password
-                    </label>
-                    <Link
-                      className="font-body-sm text-xs text-primary hover:underline"
-                      href="/forgot-password"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
+                  <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="newPassword">
+                    New Password
+                  </label>
                   <div className="relative flex items-center">
                     <input
-                      autoComplete="current-password"
+                      autoComplete="new-password"
                       className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 pr-10 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
-                      id="password"
-                      name="password"
-                      placeholder="Enter your password"
+                      id="newPassword"
+                      name="newPassword"
+                      placeholder="At least 6 characters"
                       required
                       type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
                     />
                     <button
                       aria-label="Toggle password visibility"
@@ -150,10 +147,33 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Error Message */}
+                {/* Confirm New Password */}
+                <div className="flex flex-col gap-space-xs">
+                  <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="confirmPassword">
+                    Confirm New Password
+                  </label>
+                  <input
+                    autoComplete="new-password"
+                    className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="Re-enter new password"
+                    required
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+
+                {/* Messages */}
                 {errorMessage && (
                   <div className="p-3 rounded-lg bg-error-container/30 border border-error/40 text-error font-body-sm text-body-sm text-center">
                     {errorMessage}
+                  </div>
+                )}
+                {successMessage && (
+                  <div className="p-3 rounded-lg bg-secondary-container/30 border border-secondary/40 text-secondary font-body-sm text-body-sm text-center">
+                    {successMessage}
                   </div>
                 )}
 
@@ -167,15 +187,15 @@ export default function LoginPage() {
                     }`}
                     type="submit"
                   >
-                    <span>{isLoading ? 'Signing In...' : 'Sign In'}</span>
+                    <span>{isLoading ? 'Updating Password...' : 'Update Password'}</span>
                   </button>
 
                   <div className="flex justify-center text-center">
                     <Link
-                      href="/register"
-                      className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors"
+                      href="/login"
+                      className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors underline"
                     >
-                      Don&apos;t have an account? <span className="text-primary font-semibold underline">Register</span>
+                      Back to Sign In
                     </Link>
                   </div>
                 </div>

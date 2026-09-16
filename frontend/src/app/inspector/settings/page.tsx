@@ -2,10 +2,16 @@
 
 import React, { useState } from 'react';
 import { Toast } from '@/components/ui/Toast';
+import { changePassword } from '@/lib/api';
 
 export default function InspectorSettingsPage() {
   const [showToast, setShowToast] = useState(false);
+  const [toastTitle, setToastTitle] = useState('Parameters Synchronised');
+  const [toastDesc, setToastDesc] = useState('Officer profile & device parameters written to cryptographic ledger.');
   const [offlineSync, setOfflineSync] = useState(true);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [avatar, setAvatar] = useState(
     'https://lh3.googleusercontent.com/aida-public/AB6AXuCl76By1vtUiTeEHRzV5GW2Xa13xQiWRLhXs5XP6pvqxaaJofBodxznf0MUIRhZu3Ozw6FCKJNbV9-0CTcWfyfjnadwGG8PO7W5QCQU7B7P356qyfSCjD1BaZ9OjnLtrw2C8yJi0TwWa_e0kakumnqnV8RFNqdgIzbGQnLJ6RljUBncYzgVk3FTfT41VrEY2PH98XEBaN0cJK7BWNRmGaX6KMcfzrgdGc3JIEOk6IllLFn4akOrr5_czQ'
   );
@@ -23,8 +29,41 @@ export default function InspectorSettingsPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (newPassword || currentPassword) {
+      if (!currentPassword) {
+        setToastTitle('Password Error');
+        setToastDesc('Please enter your current password.');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3500);
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setToastTitle('Password Error');
+        setToastDesc('New password and confirmation do not match.');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3500);
+        return;
+      }
+      try {
+        await changePassword(currentPassword, newPassword);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setToastTitle('Password Updated');
+        setToastDesc('Portal credentials successfully updated.');
+      } catch (err: any) {
+        setToastTitle('Update Failed');
+        setToastDesc(err.message || 'Failed to update password.');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3500);
+        return;
+      }
+    } else {
+      setToastTitle('Parameters Synchronised');
+      setToastDesc('Officer profile & device parameters written to cryptographic ledger.');
+    }
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
   };
@@ -214,6 +253,8 @@ export default function InspectorSettingsPage() {
                   className="w-full bg-surface text-on-surface px-3.5 py-2.5 rounded-lg font-body-md text-body-md outline-none border border-outline-variant/50 focus:border-primary"
                   placeholder="••••••••••••"
                   type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -224,6 +265,8 @@ export default function InspectorSettingsPage() {
                   className="w-full bg-surface text-on-surface px-3.5 py-2.5 rounded-lg font-body-md text-body-md outline-none border border-outline-variant/50 focus:border-primary"
                   placeholder="Enter new password"
                   type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -234,6 +277,8 @@ export default function InspectorSettingsPage() {
                   className="w-full bg-surface text-on-surface px-3.5 py-2.5 rounded-lg font-body-md text-body-md outline-none border border-outline-variant/50 focus:border-primary"
                   placeholder="Re-type new password"
                   type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                 />
               </div>
             </div>
@@ -278,8 +323,8 @@ export default function InspectorSettingsPage() {
 
       <Toast
         show={showToast}
-        title="Parameters Synchronised"
-        description="Officer profile & device parameters written to cryptographic ledger."
+        title={toastTitle}
+        description={toastDesc}
       />
     </div>
   );

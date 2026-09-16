@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { logoutUser } from '@/lib/api';
 
 const navItems = [
   { label: 'New Scan', href: '/inspector/new-scan', icon: 'photo_camera' },
@@ -13,6 +14,14 @@ const navItems = [
 
 export const InspectorSidebar: React.FC = () => {
   const pathname = usePathname();
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // proceed with client navigation to /login
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-72 bg-surface-container-low z-50 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-r border-outline-variant/40">
@@ -86,6 +95,7 @@ export const InspectorSidebar: React.FC = () => {
           <div className="pt-2">
             <Link
               href="/login"
+              onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface transition-colors font-body-sm text-body-sm font-medium"
             >
               <span className="material-symbols-outlined text-[18px]">logout</span>

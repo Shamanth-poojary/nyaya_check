@@ -2,15 +2,55 @@
 
 import React, { useState } from 'react';
 import { Toast } from '@/components/ui/Toast';
+import { changePassword } from '@/lib/api';
 
 export default function AdminSettingsPage() {
   const [showToast, setShowToast] = useState(false);
+  const [toastTitle, setToastTitle] = useState('Configuration Synchronized');
+  const [toastDesc, setToastDesc] = useState('Changes applied to statutory database instance.');
   const [twoFactor, setTwoFactor] = useState(true);
   const [deficitAlerts, setDeficitAlerts] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(true);
 
-  const handleSave = (e: React.FormEvent) => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (newPassword || currentPassword) {
+      if (!currentPassword) {
+        setToastTitle('Password Error');
+        setToastDesc('Please enter your current password.');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3500);
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setToastTitle('Password Error');
+        setToastDesc('New password and confirmation do not match.');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3500);
+        return;
+      }
+      try {
+        await changePassword(currentPassword, newPassword);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setToastTitle('Password Updated');
+        setToastDesc('Security credentials successfully synchronized.');
+      } catch (err: any) {
+        setToastTitle('Update Failed');
+        setToastDesc(err.message || 'Failed to update password.');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3500);
+        return;
+      }
+    } else {
+      setToastTitle('Configuration Synchronized');
+      setToastDesc('Changes applied to statutory database instance.');
+    }
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
   };
@@ -159,6 +199,8 @@ export default function AdminSettingsPage() {
                 className="w-full px-space-md py-2.5 rounded-lg bg-surface border border-outline-variant/60 focus:border-primary focus:outline-none font-body-md text-body-md text-on-surface transition-all"
                 placeholder="••••••••••••"
                 type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
@@ -170,6 +212,8 @@ export default function AdminSettingsPage() {
                   className="w-full px-space-md py-2.5 rounded-lg bg-surface border border-outline-variant/60 focus:border-primary focus:outline-none font-body-md text-body-md text-on-surface transition-all"
                   placeholder="Enter new password"
                   type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
@@ -180,6 +224,8 @@ export default function AdminSettingsPage() {
                   className="w-full px-space-md py-2.5 rounded-lg bg-surface border border-outline-variant/60 focus:border-primary focus:outline-none font-body-md text-body-md text-on-surface transition-all"
                   placeholder="Confirm new password"
                   type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                 />
               </div>
             </div>
@@ -271,8 +317,8 @@ export default function AdminSettingsPage() {
 
       <Toast
         show={showToast}
-        title="Configuration Synchronized"
-        description="Changes applied to statutory database instance."
+        title={toastTitle}
+        description={toastDesc}
       />
     </div>
   );

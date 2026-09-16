@@ -3,39 +3,52 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loginUser } from '@/lib/api';
+import { registerUser } from '@/lib/api';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleLogin = async (event: React.FormEvent) => {
+  const handleRegister = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMessage(null);
 
-    if (!email || !password) {
-      setErrorMessage('Please enter both email and password.');
+    if (!name || !email || !password) {
+      setErrorMessage('Please fill in all required fields.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters long.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const res = await loginUser(email, password);
-      setIsLoading(false);
+      await registerUser({
+        name,
+        email,
+        password
+      });
 
-      if (res.user?.role === 'admin') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/inspector/new-scan');
-      }
+      setIsLoading(false);
+      router.push('/inspector/new-scan');
     } catch (err: any) {
       setIsLoading(false);
-      setErrorMessage(err.message || 'Invalid email or password.');
+      setErrorMessage(err.message || 'Registration failed. Please check your details.');
     }
   };
 
@@ -52,10 +65,10 @@ export default function LoginPage() {
           </Link>
           <div className="flex items-center gap-4">
             <Link
-              href="/register"
+              href="/login"
               className="text-primary hover:text-primary-container text-body-sm font-semibold transition-colors"
             >
-              Register
+              Sign In
             </Link>
             <Link
               href="/"
@@ -75,30 +88,52 @@ export default function LoginPage() {
             <div className="flex flex-col items-center text-center mb-space-lg">
               <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-space-sm border border-outline-variant/30">
                 <span className="material-symbols-outlined text-on-surface text-[24px]">
-                  lock
+                  person_add
                 </span>
               </div>
               <h1 className="font-headline-md text-headline-md text-on-surface tracking-tight font-semibold">
-                Sign In
+                Create Account
               </h1>
               <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-                Enter your details to sign in to your account
+                Enter your details to register a new account
               </p>
             </div>
 
             {/* Form Card */}
             <div className="w-full bg-surface-container-lowest rounded-xl p-space-xl shadow-sm relative border border-outline-variant/40">
-              <form className="flex flex-col gap-space-md" onSubmit={handleLogin}>
+              <form className="flex flex-col gap-space-md" onSubmit={handleRegister}>
+                {/* Full Name */}
+                <div className="flex flex-col gap-space-xs">
+                  <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="fullName">
+                    Full Name
+                  </label>
+                  <div className="relative flex items-center">
+                    <input
+                      className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
+                      id="fullName"
+                      name="name"
+                      placeholder="e.g. Rajesh Kumar"
+                      required
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                    <span className="material-symbols-outlined absolute right-3 text-on-surface-variant text-[20px] pointer-events-none">
+                      person
+                    </span>
+                  </div>
+                </div>
+
                 {/* Email */}
                 <div className="flex flex-col gap-space-xs">
-                  <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="email">
+                  <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="officialEmail">
                     Email Address
                   </label>
                   <div className="relative flex items-center">
                     <input
                       autoComplete="email"
                       className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
-                      id="email"
+                      id="officialEmail"
                       name="email"
                       placeholder="e.g. name@example.com"
                       required
@@ -114,24 +149,16 @@ export default function LoginPage() {
 
                 {/* Password */}
                 <div className="flex flex-col gap-space-xs">
-                  <div className="flex items-center justify-between">
-                    <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="password">
-                      Password
-                    </label>
-                    <Link
-                      className="font-body-sm text-xs text-primary hover:underline"
-                      href="/forgot-password"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
+                  <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="password">
+                    Password
+                  </label>
                   <div className="relative flex items-center">
                     <input
-                      autoComplete="current-password"
+                      autoComplete="new-password"
                       className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 pr-10 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
                       id="password"
                       name="password"
-                      placeholder="Enter your password"
+                      placeholder="Minimum 6 characters"
                       required
                       type={showPassword ? 'text' : 'password'}
                       value={password}
@@ -150,7 +177,25 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Error Message */}
+                {/* Confirm Password */}
+                <div className="flex flex-col gap-space-xs">
+                  <label className="font-body-sm text-body-sm text-on-surface font-medium" htmlFor="confirmPassword">
+                    Confirm Password
+                  </label>
+                  <input
+                    autoComplete="new-password"
+                    className="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/45 font-body-md text-body-md rounded-lg px-space-md py-2.5 transition-colors focus:bg-surface focus:outline-none border border-transparent focus:border-outline-variant/60"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="Re-enter password"
+                    required
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+
+                {/* Error Banner */}
                 {errorMessage && (
                   <div className="p-3 rounded-lg bg-error-container/30 border border-error/40 text-error font-body-sm text-body-sm text-center">
                     {errorMessage}
@@ -167,15 +212,21 @@ export default function LoginPage() {
                     }`}
                     type="submit"
                   >
-                    <span>{isLoading ? 'Signing In...' : 'Sign In'}</span>
+                    <span>{isLoading ? 'Creating Account...' : 'Create Account'}</span>
                   </button>
 
-                  <div className="flex justify-center text-center">
+                  <div className="flex items-center justify-between text-center pt-1 font-body-sm text-body-sm">
                     <Link
-                      href="/register"
-                      className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors"
+                      href="/login"
+                      className="text-on-surface-variant hover:text-primary transition-colors"
                     >
-                      Don&apos;t have an account? <span className="text-primary font-semibold underline">Register</span>
+                      Already have an account? <span className="text-primary font-semibold underline">Sign In</span>
+                    </Link>
+                    <Link
+                      href="/forgot-password"
+                      className="text-on-surface-variant hover:text-primary transition-colors underline"
+                    >
+                      Forgot password?
                     </Link>
                   </div>
                 </div>
