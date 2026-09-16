@@ -285,7 +285,7 @@ class TestCheckEndpoint:
     def test_check_single_image_json(self):
         buf = _sample_image_bytes(100, 80)
         resp = client.post(
-            "/check",
+            "/v1/check",
             files={"image": ("single.png", buf, "image/png")},
         )
         assert resp.status_code == 200
@@ -312,7 +312,7 @@ class TestCheckEndpoint:
         buf1 = _sample_image_bytes(100, 80)
         buf2 = _sample_image_bytes(120, 90)
         resp = client.post(
-            "/check",
+            "/v1/check",
             files=[
                 ("images", ("front.png", buf1, "image/png")),
                 ("images", ("back.png", buf2, "image/png")),
@@ -329,7 +329,7 @@ class TestCheckEndpoint:
     def test_check_format_markdown_query_param(self):
         buf = _sample_image_bytes(100, 80)
         resp = client.post(
-            "/check?format=markdown",
+            "/v1/check?format=markdown",
             files={"image": ("single.png", buf, "image/png")},
         )
         assert resp.status_code == 200
@@ -343,7 +343,7 @@ class TestCheckEndpoint:
     def test_check_accept_header_markdown(self):
         buf = _sample_image_bytes(100, 80)
         resp = client.post(
-            "/check",
+            "/v1/check",
             files={"image": ("single.png", buf, "image/png")},
             headers={"Accept": "text/markdown"},
         )
@@ -354,7 +354,7 @@ class TestCheckEndpoint:
     def test_check_format_pdf_returns_informative_400(self):
         buf = _sample_image_bytes(100, 80)
         resp = client.post(
-            "/check?format=pdf",
+            "/v1/check?format=pdf",
             files={"image": ("single.png", buf, "image/png")},
         )
         assert resp.status_code == 400
@@ -362,10 +362,10 @@ class TestCheckEndpoint:
         assert "PDF_DECISION.md" in data["detail"]
         assert "deferred" in data["detail"].lower()
 
-    def test_check_v1_alias_works(self):
+    def test_check_legacy_alias_works(self):
         buf = _sample_image_bytes(100, 80)
         resp = client.post(
-            "/v1/check",
+            "/check",
             files={"image": ("single.png", buf, "image/png")},
         )
         assert resp.status_code == 200
@@ -380,12 +380,12 @@ class TestCheckEndpoint:
 class TestCheckErrorHandling:
 
     def test_rejects_empty_upload(self):
-        resp = client.post("/check")
+        resp = client.post("/v1/check")
         assert resp.status_code in (400, 422)
 
     def test_rejects_non_image_file(self):
         resp = client.post(
-            "/check",
+            "/v1/check",
             files={"image": ("test.txt", io.BytesIO(b"not an image"), "text/plain")},
         )
         assert resp.status_code == 400
@@ -393,7 +393,7 @@ class TestCheckErrorHandling:
 
     def test_rejects_corrupted_image_bytes(self):
         resp = client.post(
-            "/check",
+            "/v1/check",
             files={"image": ("corrupted.png", io.BytesIO(b"\x89PNG\r\n\x1a\nCorruptBytesHere"), "image/png")},
         )
         assert resp.status_code == 400
@@ -404,7 +404,7 @@ class TestCheckErrorHandling:
             ("images", (f"img_{i}.png", _sample_image_bytes(30, 30), "image/png"))
             for i in range(11)
         ]
-        resp = client.post("/check", files=files)
+        resp = client.post("/v1/check", files=files)
         assert resp.status_code == 400
         assert "Too many images" in resp.json()["detail"]
 
@@ -416,7 +416,7 @@ class TestCheckErrorHandling:
 class TestRealProductPipeline:
 
     def test_real_image_end_to_end(self):
-        """Run POST /check with an actual image file from test_images."""
+        """Run POST /v1/check with an actual image file from test_images."""
         import os
 
         real_img_path = os.path.join(
@@ -428,7 +428,7 @@ class TestRealProductPipeline:
         start_time = time.time()
         with open(real_img_path, "rb") as f:
             resp = client.post(
-                "/check",
+                "/v1/check",
                 files={"image": ("real_clean_product.png", f.read(), "image/png")},
             )
         elapsed = time.time() - start_time

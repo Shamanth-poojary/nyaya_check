@@ -19,6 +19,17 @@ class OCRLine(NamedTuple):
     confidence: float
 
 
+def is_engine_initialized() -> bool:
+    """Check whether the PaddleOCR engine has already been loaded into memory."""
+    global _engine
+    return _engine is not None
+
+
+def warmup_engine():
+    """Trigger eager initialization of the PaddleOCR engine."""
+    _get_engine()
+
+
 def _get_engine():
     """
     Lazily initialize PaddleOCR once per process. Loading the engine is

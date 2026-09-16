@@ -237,27 +237,48 @@ SCHEMA_VERSION: str = "2.0"
 
 
 class ExtractionResponse(BaseModel):
-    schemaVersion: str = SCHEMA_VERSION
-    document: DocumentMeta
-    sourceDocuments: List[DocumentMeta] = Field(default_factory=list)  # populated for multi-image extraction
-    commodity: Commodity = Field(default_factory=Commodity)
-    manufacturer: PartyInfo = Field(default_factory=PartyInfo)
-    packer: PartyInfo = Field(default_factory=PartyInfo)
-    importer: PartyInfo = Field(default_factory=PartyInfo)
-    mrp: MRP = Field(default_factory=MRP)
-    netQuantity: NetQuantity = Field(default_factory=NetQuantity)
-    manufacturingDate: DateField = Field(default_factory=DateField)
-    packingDate: DateField = Field(default_factory=DateField)  # "Date of Packaging" -- distinct from mfg date, very common on real labels
-    expiryDate: DateField = Field(default_factory=DateField)
-    batchNumber: BatchNumber = Field(default_factory=BatchNumber)
-    dimensions: List[Dimension] = Field(default_factory=list)
-    consumerCare: ConsumerCare = Field(default_factory=ConsumerCare)
-    quantityQualifiers: List[QuantityQualifier] = Field(default_factory=list)
-    misleadingQuantityTerms: List[MisleadingTerm] = Field(default_factory=list)
-    measurement: Measurement = Field(default_factory=Measurement)
-    visual: VisualEvidence = Field(default_factory=VisualEvidence)
-    rawOCR: List[RawOCRLine] = Field(default_factory=list)
-    uncertainFields: List[str] = Field(default_factory=list)
+    schemaVersion: str = Field(default=SCHEMA_VERSION, description="Extraction response schema version", examples=["2.0"])
+    document: DocumentMeta = Field(..., description="Primary or first image dimensions and metadata")
+    sourceDocuments: List[DocumentMeta] = Field(
+        default_factory=list,
+        description="List of all image metadata entries when multi-image extraction is used",
+    )
+    commodity: Commodity = Field(default_factory=Commodity, description="Extracted commodity name and category")
+    manufacturer: PartyInfo = Field(default_factory=PartyInfo, description="Extracted manufacturer name and address")
+    packer: PartyInfo = Field(default_factory=PartyInfo, description="Extracted packer name and address (if distinct)")
+    importer: PartyInfo = Field(default_factory=PartyInfo, description="Extracted importer name and address (if imported)")
+    mrp: MRP = Field(default_factory=MRP, description="Extracted Maximum Retail Price (MRP) and tax indication")
+    netQuantity: NetQuantity = Field(default_factory=NetQuantity, description="Extracted declared net quantity and normalized units")
+    manufacturingDate: DateField = Field(default_factory=DateField, description="Extracted date of manufacture")
+    packingDate: DateField = Field(default_factory=DateField, description="Extracted date of packaging (if declared)")
+    expiryDate: DateField = Field(default_factory=DateField, description="Extracted date of expiry or best before")
+    batchNumber: BatchNumber = Field(default_factory=BatchNumber, description="Extracted batch or lot identification number")
+    dimensions: List[Dimension] = Field(default_factory=list, description="Extracted physical package dimensions")
+    consumerCare: ConsumerCare = Field(default_factory=ConsumerCare, description="Extracted consumer grievance helpline and email")
+    quantityQualifiers: List[QuantityQualifier] = Field(
+        default_factory=list,
+        description="Detected quantity qualifiers such as 'when packed' or 'net weight'",
+    )
+    misleadingQuantityTerms: List[MisleadingTerm] = Field(
+        default_factory=list,
+        description="Detected prohibited misleading terms such as 'approximate' or 'jumbo'",
+    )
+    measurement: Measurement = Field(
+        default_factory=Measurement,
+        description="External physical measurement data if provided to the service",
+    )
+    visual: VisualEvidence = Field(
+        default_factory=VisualEvidence,
+        description="Visual evidence including font ratios, contrast buckets, and whitespace clearance",
+    )
+    rawOCR: List[RawOCRLine] = Field(
+        default_factory=list,
+        description="Raw recognized OCR text lines with bounding boxes and confidence scores",
+    )
+    uncertainFields: List[str] = Field(
+        default_factory=list,
+        description="Fields with conflicting evidence across photos or low OCR confidence requiring human review",
+    )
 
 
 def empty_response(image_id: str, width: int, height: int) -> ExtractionResponse:

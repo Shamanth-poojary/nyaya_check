@@ -32,18 +32,66 @@ class ProductSummary(BaseModel):
     assembly time so frontend and backend consumers don't need to recompute or
     re-extract from nested structures.
     """
-    commodityName: Optional[str] = None
-    commodityCategory: Optional[str] = None
-    manufacturerName: Optional[str] = None
-    packerName: Optional[str] = None
-    importerName: Optional[str] = None
-    netQuantity: Optional[str] = None
-    mrp: Optional[str] = None
-    manufacturingDate: Optional[str] = None
-    packingDate: Optional[str] = None
-    expiryDate: Optional[str] = None
-    batchNumber: Optional[str] = None
-    consumerCareContact: Optional[str] = None
+    commodityName: Optional[str] = Field(
+        default=None,
+        description="Declared commercial commodity name",
+        examples=["Turmeric Powder"],
+    )
+    commodityCategory: Optional[str] = Field(
+        default=None,
+        description="Matched schedule commodity category",
+        examples=["spices_and_condiments"],
+    )
+    manufacturerName: Optional[str] = Field(
+        default=None,
+        description="Name of declared manufacturer",
+        examples=["Everest Food Products Pvt. Ltd."],
+    )
+    packerName: Optional[str] = Field(
+        default=None,
+        description="Name of declared packer if distinct from manufacturer",
+        examples=[None],
+    )
+    importerName: Optional[str] = Field(
+        default=None,
+        description="Name of declared importer for imported commodities",
+        examples=[None],
+    )
+    netQuantity: Optional[str] = Field(
+        default=None,
+        description="Formatted declared net quantity string",
+        examples=["100 g"],
+    )
+    mrp: Optional[str] = Field(
+        default=None,
+        description="Formatted declared retail price with currency",
+        examples=["₹35.00"],
+    )
+    manufacturingDate: Optional[str] = Field(
+        default=None,
+        description="Raw or formatted date of manufacture",
+        examples=["03/2024"],
+    )
+    packingDate: Optional[str] = Field(
+        default=None,
+        description="Raw or formatted date of packaging",
+        examples=[None],
+    )
+    expiryDate: Optional[str] = Field(
+        default=None,
+        description="Raw or formatted date of expiry / best before",
+        examples=["03/2025"],
+    )
+    batchNumber: Optional[str] = Field(
+        default=None,
+        description="Declared batch, lot, or identification code",
+        examples=["B.NO. 24A01"],
+    )
+    consumerCareContact: Optional[str] = Field(
+        default=None,
+        description="Consumer grievance contact details (phone, email, or address)",
+        examples=["Phone: 1800-22-2244, Email: customercare@everestspices.com"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -54,12 +102,33 @@ class ComplianceReport(BaseModel):
     """The authoritative end-to-end report combining full extraction evidence,
     rules engine evaluation results, and high-level product summaries.
     """
-    schemaVersion: str = REPORT_SCHEMA_VERSION
-    reportId: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    generatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    extraction: ExtractionResponse
-    compliance: ComplianceResult
-    productSummary: ProductSummary
+    schemaVersion: str = Field(
+        default=REPORT_SCHEMA_VERSION,
+        description="Compliance report schema version",
+        examples=["4.0"],
+    )
+    reportId: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Globally unique identifier for this evaluation report",
+        examples=["550e8400-e29b-41d4-a716-446655440000"],
+    )
+    generatedAt: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Timestamp when the report was compiled (ISO 8601 UTC)",
+        examples=["2026-09-16T07:30:00Z"],
+    )
+    extraction: ExtractionResponse = Field(
+        ...,
+        description="Consolidated structured extraction evidence from all submitted photos",
+    )
+    compliance: ComplianceResult = Field(
+        ...,
+        description="Statutory legal metrology compliance evaluation results",
+    )
+    productSummary: ProductSummary = Field(
+        ...,
+        description="At-a-glance product declarations synthesized for UI presentation",
+    )
 
 
 # ---------------------------------------------------------------------------

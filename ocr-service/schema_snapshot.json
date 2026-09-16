@@ -1056,13 +1056,19 @@
   "properties": {
     "schemaVersion": {
       "default": "2.0",
+      "description": "Extraction response schema version",
+      "examples": [
+        "2.0"
+      ],
       "title": "Schemaversion",
       "type": "string"
     },
     "document": {
-      "$ref": "#/$defs/DocumentMeta"
+      "$ref": "#/$defs/DocumentMeta",
+      "description": "Primary or first image dimensions and metadata"
     },
     "sourceDocuments": {
+      "description": "List of all image metadata entries when multi-image extraction is used",
       "items": {
         "$ref": "#/$defs/DocumentMeta"
       },
@@ -1070,36 +1076,47 @@
       "type": "array"
     },
     "commodity": {
-      "$ref": "#/$defs/Commodity"
+      "$ref": "#/$defs/Commodity",
+      "description": "Extracted commodity name and category"
     },
     "manufacturer": {
-      "$ref": "#/$defs/PartyInfo"
+      "$ref": "#/$defs/PartyInfo",
+      "description": "Extracted manufacturer name and address"
     },
     "packer": {
-      "$ref": "#/$defs/PartyInfo"
+      "$ref": "#/$defs/PartyInfo",
+      "description": "Extracted packer name and address (if distinct)"
     },
     "importer": {
-      "$ref": "#/$defs/PartyInfo"
+      "$ref": "#/$defs/PartyInfo",
+      "description": "Extracted importer name and address (if imported)"
     },
     "mrp": {
-      "$ref": "#/$defs/MRP"
+      "$ref": "#/$defs/MRP",
+      "description": "Extracted Maximum Retail Price (MRP) and tax indication"
     },
     "netQuantity": {
-      "$ref": "#/$defs/NetQuantity"
+      "$ref": "#/$defs/NetQuantity",
+      "description": "Extracted declared net quantity and normalized units"
     },
     "manufacturingDate": {
-      "$ref": "#/$defs/DateField"
+      "$ref": "#/$defs/DateField",
+      "description": "Extracted date of manufacture"
     },
     "packingDate": {
-      "$ref": "#/$defs/DateField"
+      "$ref": "#/$defs/DateField",
+      "description": "Extracted date of packaging (if declared)"
     },
     "expiryDate": {
-      "$ref": "#/$defs/DateField"
+      "$ref": "#/$defs/DateField",
+      "description": "Extracted date of expiry or best before"
     },
     "batchNumber": {
-      "$ref": "#/$defs/BatchNumber"
+      "$ref": "#/$defs/BatchNumber",
+      "description": "Extracted batch or lot identification number"
     },
     "dimensions": {
+      "description": "Extracted physical package dimensions",
       "items": {
         "$ref": "#/$defs/Dimension"
       },
@@ -1107,9 +1124,11 @@
       "type": "array"
     },
     "consumerCare": {
-      "$ref": "#/$defs/ConsumerCare"
+      "$ref": "#/$defs/ConsumerCare",
+      "description": "Extracted consumer grievance helpline and email"
     },
     "quantityQualifiers": {
+      "description": "Detected quantity qualifiers such as 'when packed' or 'net weight'",
       "items": {
         "$ref": "#/$defs/QuantityQualifier"
       },
@@ -1117,6 +1136,7 @@
       "type": "array"
     },
     "misleadingQuantityTerms": {
+      "description": "Detected prohibited misleading terms such as 'approximate' or 'jumbo'",
       "items": {
         "$ref": "#/$defs/MisleadingTerm"
       },
@@ -1124,12 +1144,15 @@
       "type": "array"
     },
     "measurement": {
-      "$ref": "#/$defs/Measurement"
+      "$ref": "#/$defs/Measurement",
+      "description": "External physical measurement data if provided to the service"
     },
     "visual": {
-      "$ref": "#/$defs/VisualEvidence"
+      "$ref": "#/$defs/VisualEvidence",
+      "description": "Visual evidence including font ratios, contrast buckets, and whitespace clearance"
     },
     "rawOCR": {
+      "description": "Raw recognized OCR text lines with bounding boxes and confidence scores",
       "items": {
         "$ref": "#/$defs/RawOCRLine"
       },
@@ -1137,6 +1160,7 @@
       "type": "array"
     },
     "uncertainFields": {
+      "description": "Fields with conflicting evidence across photos or low OCR confidence requiring human review",
       "items": {
         "type": "string"
       },

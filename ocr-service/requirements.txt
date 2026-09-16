@@ -19,4 +19,6 @@ numpy
 
 # --- Added in later phases ---
 pyyaml                   # Phase 03 - rules engine schedule YAML loader
+pydantic-settings>=2.5.0 # Phase 05 - environment configuration
+gunicorn>=22.0.0         # Phase 05 - production WSGI/ASGI container runner
 # spacy                    # Phase 7 - NER

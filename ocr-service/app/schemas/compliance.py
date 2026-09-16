@@ -62,40 +62,56 @@ class Severity(str, Enum):
 # ---------------------------------------------------------------------------
 
 class RuleResult(BaseModel):
-    ruleId: str
-    # Stable snake_case identifier, e.g. "rule_6_manufacturer_declaration".
-
-    ruleReference: str
-    # Human-readable legal citation,
-    # e.g. "Legal Metrology (Packaged Commodities) Rules, 2011 — Rule 6(1)".
-
-    description: str
-    # Short description of what was checked, e.g. "Manufacturer name and
-    # address present on label".
-
-    passed: bool
-    # True if the check passed (including NEEDS_REVIEW — that field is still
-    # considered "not a confirmed failure").
-
-    severity: Severity
-    # Severity of this result.  BLOCKING/WARNING only make sense when
-    # passed=False.  INFO is used for inapplicable checks.
-
-    evidenceField: Optional[str] = None
-    # Which ExtractionResponse field the evidence came from,
-    # e.g. "manufacturer", "netQuantity.unit".
-
-    evidenceValue: Optional[str] = None
-    # The actual value inspected, serialised as a string for readability.
-
-    evidenceConfidence: Optional[float] = None
-    # Confidence of the extracted evidence (from the source field).
-
-    sourceImage: Optional[str] = None
-    # Which uploaded photo contributed the evidence.
-
-    message: str = ""
-    # Specific human-readable explanation of the result.
+    ruleId: str = Field(
+        ...,
+        description="Stable snake_case identifier for the statutory rule",
+        examples=["rule_6_mrp_declaration"],
+    )
+    ruleReference: str = Field(
+        ...,
+        description="Statutory legal citation from Legal Metrology Rules, 2011",
+        examples=["Legal Metrology (Packaged Commodities) Rules, 2011 — Rule 6(1)(e)"],
+    )
+    description: str = Field(
+        ...,
+        description="Short human-readable summary of what the rule requires",
+        examples=["Maximum Retail Price (MRP) declaration present and legible on package"],
+    )
+    passed: bool = Field(
+        ...,
+        description="Whether this statutory requirement is satisfied",
+        examples=[True],
+    )
+    severity: Severity = Field(
+        ...,
+        description="Severity classification: blocking, warning, info, or needs_review",
+        examples=[Severity.BLOCKING],
+    )
+    evidenceField: Optional[str] = Field(
+        default=None,
+        description="Underlying extraction field that provided the evidence",
+        examples=["mrp"],
+    )
+    evidenceValue: Optional[str] = Field(
+        default=None,
+        description="Serialized evidence value inspected during rule evaluation",
+        examples=["₹150.00"],
+    )
+    evidenceConfidence: Optional[float] = Field(
+        default=None,
+        description="Extraction confidence score for the inspected evidence (0.0 to 1.0)",
+        examples=[0.95],
+    )
+    sourceImage: Optional[str] = Field(
+        default=None,
+        description="Filename of the packaging photo that contributed this evidence",
+        examples=["front_panel.jpg"],
+    )
+    message: str = Field(
+        default="",
+        description="Explanatory statement detailing the outcome and findings",
+        examples=["MRP declaration found with inclusive of all taxes indication."],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -103,13 +119,13 @@ class RuleResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ComplianceSummary(BaseModel):
-    totalChecks: int = 0
-    passed: int = 0
-    failed: int = 0
-    needsReview: int = 0
-    blocking: int = 0    # count of BLOCKING failures
-    warnings: int = 0    # count of WARNING failures
-    infos: int = 0       # count of INFO results
+    totalChecks: int = Field(default=0, description="Total statutory checks evaluated", examples=[12])
+    passed: int = Field(default=0, description="Count of passed checks", examples=[10])
+    failed: int = Field(default=0, description="Count of failed checks (blocking or warning)", examples=[0])
+    needsReview: int = Field(default=0, description="Count of checks requiring manual human review", examples=[2])
+    blocking: int = Field(default=0, description="Count of blocking non-compliant violations", examples=[0])
+    warnings: int = Field(default=0, description="Count of warning-level violations", examples=[0])
+    infos: int = Field(default=0, description="Count of informational notes", examples=[1])
 
 
 # ---------------------------------------------------------------------------
@@ -117,10 +133,20 @@ class ComplianceSummary(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ComplianceResult(BaseModel):
-    schemaVersion: str = COMPLIANCE_SCHEMA_VERSION
-    overallStatus: Literal["compliant", "non_compliant", "needs_review"]
-    ruleResults: List[RuleResult] = Field(default_factory=list)
-    summary: ComplianceSummary = Field(default_factory=ComplianceSummary)
+    schemaVersion: str = Field(default=COMPLIANCE_SCHEMA_VERSION, description="Rules engine schema version", examples=["3.0"])
+    overallStatus: Literal["compliant", "non_compliant", "needs_review"] = Field(
+        ...,
+        description="Consolidated statutory compliance determination",
+        examples=["compliant"],
+    )
+    ruleResults: List[RuleResult] = Field(
+        default_factory=list,
+        description="List of individual statutory rule evaluation results",
+    )
+    summary: ComplianceSummary = Field(
+        default_factory=ComplianceSummary,
+        description="Aggregate totals of passed, failed, and review-pending checks",
+    )
 
 
 # ---------------------------------------------------------------------------

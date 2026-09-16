@@ -16,26 +16,28 @@ Runs the entire pipeline from end to end:
 from __future__ import annotations
 
 import logging
+import time
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import PlainTextResponse
 
 from app.classification.merge import merge_extraction_results
+from app.config import settings
 from app.pipeline import process_single_image
 from app.reporting.markdown_renderer import render_report_markdown
-from app.routes.ocr import MAX_IMAGES_PER_REQUEST
 from app.rules.engine import evaluate
 from app.schemas.report import ComplianceReport, build_compliance_report
 from app.visual.layout import identify_principal_display_panel
 
-router = APIRouter()
+router = APIRouter(tags=["Compliance"])
 logger = logging.getLogger(__name__)
 
 
 @router.post(
     "/check",
     response_model=ComplianceReport,
+    summary="End-to-end Legal Metrology compliance evaluation",
     responses={
         200: {
             "content": {
@@ -46,12 +48,20 @@ logger = logging.getLogger(__name__)
         }
     },
 )
-@router.post("/v1/check", response_model=ComplianceReport, include_in_schema=False)
 async def check(
     request: Request,
-    images: Optional[List[UploadFile]] = File(default=None),
-    image: Optional[UploadFile] = File(default=None),
-    preprocess_enabled: bool = False,
+    images: Optional[List[UploadFile]] = File(
+        default=None,
+        description="One or more packaging photos (front, back, sides)",
+    ),
+    image: Optional[UploadFile] = File(
+        default=None,
+        description="Single packaging photo convenience parameter",
+    ),
+    preprocess_enabled: bool = Query(
+        default=settings.preprocess_enabled_default,
+        description="Enable OpenCV CLAHE contrast enhancement. Defaults to false.",
+    ),
     format: Optional[str] = Query(
         default=None,
         description="Desired output format: 'json' (default) or 'markdown'. PDF is deferred (see PDF_DECISION.md).",
@@ -69,6 +79,8 @@ async def check(
       - `format=markdown` or `Accept: text/markdown`: returns human-readable Markdown summary
       - `format=pdf`: returns HTTP 400 explaining PDF deferral (see PDF_DECISION.md)
     """
+    t_start = time.perf_counter()
+
     # 1. Format parameter validation
     fmt = (format or "").lower().strip()
     if fmt == "pdf":
@@ -93,11 +105,16 @@ async def check(
             detail="No image uploaded. Please supply at least one image via 'image' or 'images'.",
         )
 
-    if len(file_list) > MAX_IMAGES_PER_REQUEST:
+    max_allowed = settings.max_images_per_request
+    if len(file_list) > max_allowed:
+        logger.warning("Rejected /check with %d images (> max %d)", len(file_list), max_allowed)
         raise HTTPException(
             status_code=400,
-            detail=f"Too many images ({len(file_list)}); max {MAX_IMAGES_PER_REQUEST} per request.",
+            detail=f"Too many images ({len(file_list)}); max {max_allowed} per request.",
         )
+
+    filenames = [f.filename or f"img_{i}" for i, f in enumerate(file_list)]
+    logger.info("POST /check evaluating %d images: %s", len(file_list), ", ".join(filenames))
 
     # 3. Execute extraction pipeline per image
     single_results = [
@@ -132,6 +149,15 @@ async def check(
 
     # 6. Assemble ComplianceReport
     report = build_compliance_report(extraction=extraction, compliance=compliance)
+
+    total_duration = time.perf_counter() - t_start
+    logger.info(
+        "POST /check completed in %.2fs (status=%s, checks=%d, failed=%d)",
+        total_duration,
+        compliance.overallStatus,
+        compliance.summary.totalChecks,
+        compliance.summary.failed,
+    )
 
     # 7. Content negotiation / response formatting
     wants_markdown = fmt in ("markdown", "md") or (

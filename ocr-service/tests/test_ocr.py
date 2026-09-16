@@ -17,14 +17,28 @@ def _sample_image_bytes(width: int = 120, height: int = 80) -> io.BytesIO:
 
 
 def test_health():
-    resp = client.get("/health")
+    resp = client.get("/v1/health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
+
+    # Legacy unversioned endpoint compatibility check
+    resp_legacy = client.get("/health")
+    assert resp_legacy.status_code == 200
+    assert resp_legacy.json() == {"status": "ok"}
+
+
+def test_ready():
+    resp = client.get("/v1/ready")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "status" in data
+    assert data["engine"] == "paddleocr"
+    assert "modelLoaded" in data
 
 
 def test_extract_valid_image_returns_placeholder_schema():
     buf = _sample_image_bytes(120, 80)
-    resp = client.post("/extract", files={"image": ("sample.png", buf, "image/png")})
+    resp = client.post("/v1/extract", files={"image": ("sample.png", buf, "image/png")})
     assert resp.status_code == 200
 
     data = resp.json()
@@ -37,14 +51,14 @@ def test_extract_valid_image_returns_placeholder_schema():
 
 def test_extract_rejects_non_image():
     resp = client.post(
-        "/extract",
+        "/v1/extract",
         files={"image": ("notes.txt", io.BytesIO(b"hello"), "text/plain")},
     )
     assert resp.status_code == 400
 
 
 def test_extract_requires_file():
-    resp = client.post("/extract")
+    resp = client.post("/v1/extract")
     assert resp.status_code == 422
 
 
@@ -52,7 +66,7 @@ def test_extract_multi_accepts_multiple_images():
     buf1 = _sample_image_bytes(100, 80)
     buf2 = _sample_image_bytes(150, 90)
     resp = client.post(
-        "/extract/multi",
+        "/v1/extract/multi",
         files=[
             ("images", ("photo1.png", buf1, "image/png")),
             ("images", ("photo2.png", buf2, "image/png")),
@@ -70,7 +84,7 @@ def test_extract_multi_accepts_multiple_images():
 
 def test_extract_multi_rejects_too_many_images():
     files = [("images", (f"p{i}.png", _sample_image_bytes(50, 50), "image/png")) for i in range(11)]
-    resp = client.post("/extract/multi", files=files)
+    resp = client.post("/v1/extract/multi", files=files)
     assert resp.status_code == 400
 
 
@@ -79,7 +93,7 @@ def test_extract_multi_single_image_still_works():
     (not crash on the 'only one result' edge case in the merge logic)."""
     buf = _sample_image_bytes(100, 100)
     resp = client.post(
-        "/extract/multi", files=[("images", ("solo.png", buf, "image/png"))]
+        "/v1/extract/multi", files=[("images", ("solo.png", buf, "image/png"))]
     )
     assert resp.status_code == 200
     data = resp.json()
