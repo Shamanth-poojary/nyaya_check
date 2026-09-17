@@ -1,20 +1,35 @@
-'use client';
+﻿'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Toast } from '@/components/ui/Toast';
 import { changePassword } from '@/lib/api';
+import { useOfficerProfile } from '@/lib/userProfile';
 
 export default function InspectorSettingsPage() {
+  const { profile, updateProfile } = useOfficerProfile();
+
   const [showToast, setShowToast] = useState(false);
   const [toastTitle, setToastTitle] = useState('Parameters Synchronised');
   const [toastDesc, setToastDesc] = useState('Officer profile & device parameters written to cryptographic ledger.');
+  
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [avatar, setAvatar] = useState('');
   const [offlineSync, setOfflineSync] = useState(true);
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [avatar, setAvatar] = useState(
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuCl76By1vtUiTeEHRzV5GW2Xa13xQiWRLhXs5XP6pvqxaaJofBodxznf0MUIRhZu3Ozw6FCKJNbV9-0CTcWfyfjnadwGG8PO7W5QCQU7B7P356qyfSCjD1BaZ9OjnLtrw2C8yJi0TwWa_e0kakumnqnV8RFNqdgIzbGQnLJ6RljUBncYzgVk3FTfT41VrEY2PH98XEBaN0cJK7BWNRmGaX6KMcfzrgdGc3JIEOk6IllLFn4akOrr5_czQ'
-  );
+
+  useEffect(() => {
+    if (profile) {
+      setName(profile.name || '');
+      setEmail(profile.email || '');
+      setPhone(profile.phone || '+91 98402 11983');
+      setAvatar(profile.avatar || '');
+    }
+  }, [profile]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -22,7 +37,13 @@ export default function InspectorSettingsPage() {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setAvatar(event.target.result as string);
+          const newAvatar = event.target.result as string;
+          setAvatar(newAvatar);
+          updateProfile({ avatar: newAvatar });
+          setToastTitle('Portrait Updated');
+          setToastDesc('New officer portrait has been saved and applied across your terminal.');
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3500);
         }
       };
       reader.readAsDataURL(file);
@@ -31,6 +52,16 @@ export default function InspectorSettingsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Update Officer profile details
+    updateProfile({
+      name: name.trim() || profile.name,
+      email: email.trim() || profile.email,
+      phone: phone.trim() || profile.phone,
+      avatar: avatar || profile.avatar,
+    });
+
+    // 2. Handle Password change if requested
     if (newPassword || currentPassword) {
       if (!currentPassword) {
         setToastTitle('Password Error');
@@ -51,19 +82,20 @@ export default function InspectorSettingsPage() {
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
-        setToastTitle('Password Updated');
-        setToastDesc('Portal credentials successfully updated.');
+        setToastTitle('Profile & Password Updated');
+        setToastDesc('Officer profile and security credentials have been updated.');
       } catch (err: any) {
-        setToastTitle('Update Failed');
+        setToastTitle('Password Update Failed');
         setToastDesc(err.message || 'Failed to update password.');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3500);
         return;
       }
     } else {
-      setToastTitle('Parameters Synchronised');
-      setToastDesc('Officer profile & device parameters written to cryptographic ledger.');
+      setToastTitle('Profile Synchronised');
+      setToastDesc('Officer name, portrait, and terminal parameters saved.');
     }
+
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
   };
@@ -76,7 +108,7 @@ export default function InspectorSettingsPage() {
           Settings
         </h1>
         <p className="font-body-md text-body-md text-on-surface-variant">
-          Manage your officer profile, contact details, and account security.
+          Manage your officer profile, portrait photo, contact details, and account security.
         </p>
       </div>
 
@@ -104,12 +136,16 @@ export default function InspectorSettingsPage() {
             {/* Photo Identification */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 bg-surface p-4 rounded-xl border border-outline-variant/30">
               <div className="relative group">
-                <div className="w-24 h-24 rounded-xl overflow-hidden bg-surface-container-highest flex-shrink-0">
-                  <img
-                    src={avatar}
-                    alt="Officer portrait"
-                    className="w-full h-full object-cover object-top"
-                  />
+                <div className="w-24 h-24 rounded-xl overflow-hidden bg-surface-container-highest flex-shrink-0 border-2 border-primary/20 shadow-sm flex items-center justify-center">
+                  {avatar ? (
+                    <img
+                      src={avatar}
+                      alt="Officer portrait"
+                      className="w-full h-full object-cover object-top"
+                    />
+                  ) : (
+                    <span className="material-symbols-outlined text-[48px] text-outline">person</span>
+                  )}
                 </div>
               </div>
               <div className="flex flex-col gap-2 min-w-0 flex-1">
@@ -122,12 +158,12 @@ export default function InspectorSettingsPage() {
                   </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Front-facing portrait embedded in digital inspection memos & spot summons.
+                  Front-facing portrait displayed in the terminal navigation, header, and inspection memos.
                 </p>
                 <div className="flex flex-wrap items-center gap-3 mt-1">
                   <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest transition-colors font-body-sm text-body-sm font-medium text-on-surface shadow-xs">
                     <span className="material-symbols-outlined text-[18px]">upload_file</span>
-                    <span>Upload New Headshot</span>
+                    <span>Upload New Photo</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -149,14 +185,16 @@ export default function InspectorSettingsPage() {
                   <input
                     className="w-full bg-surface text-on-surface px-3.5 py-2.5 rounded-lg font-body-md text-body-md outline-none border border-outline-variant/50 focus:border-primary"
                     type="text"
-                    defaultValue="S.K. Ranganathan"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter officer full name"
                   />
                   <span className="material-symbols-outlined absolute right-3 top-2.5 text-[20px] text-secondary">
                     verified
                   </span>
                 </div>
                 <span className="font-body-sm text-body-sm text-on-surface-variant">
-                  Matches Central Gazette Reg No. #CG-2018/88392
+                  Displayed as "Officer {name || profile.name}" across the portal.
                 </span>
               </div>
 
@@ -173,10 +211,10 @@ export default function InspectorSettingsPage() {
                   className="w-full bg-surface-container-highest/80 text-on-surface font-label-code text-label-code px-3.5 py-2.5 rounded-lg cursor-not-allowed select-none border border-outline-variant/40"
                   readOnly
                   type="text"
-                  defaultValue="LM-DL-88392"
+                  value={profile.badge || 'LM-DL-88392'}
                 />
                 <span className="font-body-sm text-body-sm text-outline">
-                  Statutory ID bound to DL Northern Zonal Registry.
+                  Statutory ID bound to {profile.zonalUnit || 'North Delhi'} Zonal Registry.
                 </span>
               </div>
 
@@ -187,7 +225,9 @@ export default function InspectorSettingsPage() {
                 <input
                   className="w-full bg-surface text-on-surface px-3.5 py-2.5 rounded-lg font-body-md text-body-md outline-none border border-outline-variant/50 focus:border-primary"
                   type="tel"
-                  defaultValue="+91 98402 11983"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 XXXXX XXXXX"
                 />
                 <span className="font-body-sm text-body-sm text-on-surface-variant">
                   Receives OTP challenges for seized custody receipts.
@@ -201,7 +241,9 @@ export default function InspectorSettingsPage() {
                 <input
                   className="w-full bg-surface text-on-surface px-3.5 py-2.5 rounded-lg font-body-md text-body-md outline-none border border-outline-variant/50 focus:border-primary"
                   type="email"
-                  defaultValue="sk.ranganathan@delhi.gov.in"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="officer@nic.in"
                 />
                 <span className="font-body-sm text-body-sm text-on-surface-variant">
                   Official reports & court dockets dispatch here.
@@ -217,7 +259,7 @@ export default function InspectorSettingsPage() {
                 </div>
                 <div className="flex flex-col">
                   <span className="font-body-sm text-body-sm font-semibold text-primary">
-                    Assigned Jurisdiction: North Delhi Zone II
+                    Assigned Jurisdiction: {profile.jurisdiction || 'North Delhi Zone II'}
                   </span>
                   <span className="font-body-sm text-body-sm text-on-surface-variant">
                     Sub-divisional Magistracy: Civil Lines, Tis Hazari Complex
@@ -306,12 +348,6 @@ export default function InspectorSettingsPage() {
 
         {/* Master Action Bar */}
         <div className="flex items-center justify-end gap-3 pt-6 border-t border-surface-container-high">
-          <button
-            type="button"
-            className="px-5 py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-body-md text-body-md font-medium transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
           <button
             type="submit"
             className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-body-md text-body-md font-semibold transition-all shadow-sm cursor-pointer"

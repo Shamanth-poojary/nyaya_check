@@ -9,10 +9,10 @@ export default function InspectorNewScanPage() {
       {/* Top Statutory Protocol Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md mb-space-lg">
         <div className="flex flex-col">
-          <div className="flex items-center gap-2 text-secondary font-label-meta text-label-meta uppercase tracking-wider mb-1">
+          {/* <div className="flex items-center gap-2 text-secondary font-label-meta text-label-meta uppercase tracking-wider mb-1">
             <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
             <span>Legal Metrology Inspection</span>
-          </div>
+          </div> */}
           <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight font-bold">
             Package Verification Scan
           </h1>

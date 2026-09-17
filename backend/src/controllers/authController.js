@@ -320,3 +320,79 @@ export const changePassword = async (req, res, next) => {
     next(error);
   }
 };
+
+export const updateProfile = async (req, res, next) => {
+  try {
+    const { name, email, phone } = req.body || {};
+    const updates = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (name && String(name).trim()) {
+      updates.push(`name = $${paramIndex++}`);
+      params.push(String(name).trim());
+    }
+
+    if (email && String(email).trim()) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+      if (!EMAIL_REGEX.test(normalizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email address format.'
+        });
+      }
+      const duplicate = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [
+        normalizedEmail,
+        req.user.id
+      ]);
+      if (duplicate.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'Email is already registered to another account.'
+        });
+      }
+      updates.push(`email = $${paramIndex++}`);
+      params.push(normalizedEmail);
+    }
+
+    if (updates.length > 0) {
+      updates.push(`updated_at = NOW()`);
+      params.push(req.user.id);
+      const queryStr = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, name, email, role`;
+      const result = await query(queryStr, params);
+      const updatedUser = result.rows[0];
+
+      const secret = process.env.JWT_SECRET;
+      if (secret) {
+        const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
+        const token = jwt.sign(
+          {
+            userId: updatedUser.id,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            name: updatedUser.name
+          },
+          secret,
+          { expiresIn }
+        );
+        const cookieName = process.env.COOKIE_NAME || 'auth_token';
+        res.cookie(cookieName, token, getCookieOptions());
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Profile updated successfully.',
+        user: updatedUser
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'No changes provided.',
+      user: req.user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

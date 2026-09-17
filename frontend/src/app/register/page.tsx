@@ -38,13 +38,28 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      await registerUser({
+      const res = await registerUser({
         name,
         email,
         password
       });
 
       setIsLoading(false);
+
+      if (res.user) {
+        localStorage.setItem('auth_user', JSON.stringify(res.user));
+        try {
+          const { saveOfficerProfile } = await import('@/lib/userProfile');
+          saveOfficerProfile({
+            name: res.user.name,
+            email: res.user.email,
+            role: res.user.role,
+          });
+        } catch {
+          // ignore
+        }
+      }
+
       router.push('/inspector/new-scan');
     } catch (err: any) {
       setIsLoading(false);

@@ -5,6 +5,7 @@ import { getStoredReports } from '@/data/mockData';
 import { InspectionReport, ReportStatus } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { ReportDetailDrawer } from '@/components/nyayacheck/ReportDetailDrawer';
+import { exportReportsToCSV, downloadBulkPanchnamaPDF } from '@/lib/exportUtils';
 
 export default function AdminReportsPage() {
   const [reports, setReports] = useState<InspectionReport[]>([]);
@@ -50,7 +51,7 @@ export default function AdminReportsPage() {
         </div>
         <div className="flex items-center gap-space-sm">
           <button
-            onClick={() => alert('Exporting inspection reports CSV...')}
+            onClick={() => exportReportsToCSV(filteredReports, 'admin_inspection_reports')}
             className="inline-flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-surface border border-outline-variant/60 text-on-surface font-body-sm text-body-sm hover:bg-surface-container-high transition-colors shadow-sm cursor-pointer"
             type="button"
           >
@@ -58,7 +59,7 @@ export default function AdminReportsPage() {
             <span>Export CSV</span>
           </button>
           <button
-            onClick={() => alert('Generating bulk panchnama PDF package...')}
+            onClick={() => downloadBulkPanchnamaPDF(filteredReports)}
             className="inline-flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-primary text-on-primary font-body-sm text-body-sm hover:bg-primary-container transition-colors shadow-sm cursor-pointer"
             type="button"
           >

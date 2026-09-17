@@ -3,6 +3,7 @@
 import React from 'react';
 import { InspectionReport } from '@/types';
 import { Badge } from '@/components/ui/Badge';
+import { downloadPanchnamaPDF, printStatutoryNotice } from '@/lib/exportUtils';
 
 interface ReportDetailDrawerProps {
   report: InspectionReport | null;
@@ -229,14 +230,14 @@ export const ReportDetailDrawer: React.FC<ReportDetailDrawerProps> = ({ report, 
           </button>
           <div className="flex items-center gap-space-xs">
             <button
-              onClick={() => alert('Printing Notice...')}
+              onClick={() => printStatutoryNotice(report)}
               className="inline-flex items-center gap-1.5 px-space-md py-2 rounded-lg bg-surface border border-outline-variant/60 text-on-surface hover:bg-surface-container-high transition-colors shadow-sm font-body-sm cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">print</span>
               <span>Print Notice</span>
             </button>
             <button
-              onClick={() => alert('Downloading PDF Panchnama dossier...')}
+              onClick={() => downloadPanchnamaPDF(report)}
               className="inline-flex items-center gap-1.5 px-space-md py-2 rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-sm font-body-sm font-semibold cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>

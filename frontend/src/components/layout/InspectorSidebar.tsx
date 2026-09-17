@@ -2,9 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { logoutUser } from '@/lib/api';
+import { useOfficerProfile } from '@/lib/userProfile';
 
 const navItems = [
   { label: 'New Scan', href: '/inspector/new-scan', icon: 'photo_camera' },
@@ -14,6 +15,8 @@ const navItems = [
 
 export const InspectorSidebar: React.FC = () => {
   const pathname = usePathname();
+  const router = useRouter();
+  const { profile } = useOfficerProfile();
 
   const handleLogout = async () => {
     try {
@@ -21,6 +24,17 @@ export const InspectorSidebar: React.FC = () => {
     } catch {
       // proceed with client navigation to /login
     }
+    localStorage.removeItem('auth_user');
+    router.push('/login');
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return 'OP';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
   };
 
   return (
@@ -39,11 +53,11 @@ export const InspectorSidebar: React.FC = () => {
               Field Inspector Portal
             </span>
           </div>
-          <div className="mt-1">
+          {/* <div className="mt-1">
             <span className="font-label-meta text-label-meta text-outline uppercase tracking-widest">
               Statutory Enforcement
             </span>
-          </div>
+          </div> */}
         </Link>
 
         <div className="px-space-md my-space-xs">
@@ -80,27 +94,34 @@ export const InspectorSidebar: React.FC = () => {
       <div className="p-space-md">
         <div className="p-space-md rounded-lg bg-surface-container flex flex-col gap-space-sm border border-outline-variant/30">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded bg-primary-container text-on-primary flex items-center justify-center font-label-code text-label-code font-bold">
-              SR
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-primary-container text-on-primary flex items-center justify-center font-label-code text-label-code font-bold flex-shrink-0 border border-outline-variant/40">
+              {profile.avatar ? (
+                <img
+                  src={profile.avatar}
+                  alt={profile.name}
+                  className="w-full h-full object-cover object-top"
+                />
+              ) : (
+                getInitials(profile.name)
+              )}
             </div>
             <div className="flex flex-col min-w-0 flex-1">
               <span className="font-body-sm text-body-sm font-semibold text-on-surface truncate">
-                S.K. Ranganathan
+                {profile.name}
               </span>
               <span className="font-label-code text-label-code text-outline truncate">
-                LM-DL-88392
+                {profile.badge || 'LM-DL-88392'}
               </span>
             </div>
           </div>
           <div className="pt-2">
-            <Link
-              href="/login"
+            <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface transition-colors font-body-sm text-body-sm font-medium"
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded bg-surface-container-high hover:bg-error-container/20 hover:text-error text-on-surface transition-colors font-body-sm text-body-sm font-medium cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">logout</span>
               <span>Log Out</span>
-            </Link>
+            </button>
           </div>
         </div>
       </div>

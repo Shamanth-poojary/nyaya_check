@@ -506,6 +506,16 @@ export const ScanViewfinder: React.FC = () => {
               onClick={() => fileInputRef.current?.click()}
               className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-on-surface-variant bg-surface-container-high/40 cursor-pointer hover:bg-surface-container-high/70 transition-colors"
             >
+              {/* Place Principal Display Panel instruction above cloud icon */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface shadow-xs border border-outline-variant/40 mb-3 text-primary">
+                <span className="material-symbols-outlined text-[18px] text-secondary">
+                  center_focus_strong
+                </span>
+                <span className="font-body-sm text-body-sm font-semibold">
+                  Place Principal Display Panel (PDP) inside frame
+                </span>
+              </div>
+
               <div className="w-16 h-16 rounded-full bg-surface shadow-xs flex items-center justify-center text-primary mb-3">
                 <span className="material-symbols-outlined text-[36px]">cloud_upload</span>
               </div>
@@ -544,13 +554,15 @@ export const ScanViewfinder: React.FC = () => {
           <div className="absolute inset-8 sm:inset-12 pointer-events-none flex flex-col justify-between">
             <div className="flex items-start justify-between">
               <div className="w-7 h-7 border-t-2 border-l-2 border-surface shadow-sm"></div>
+              {mode === 'camera' && cameraActive && (
+                <div className="px-3.5 py-1.5 rounded-full bg-primary/80 backdrop-blur-md text-surface font-body-sm text-body-sm shadow-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-secondary">
+                    center_focus_strong
+                  </span>
+                  <span>Place Principal Display Panel (PDP) inside frame</span>
+                </div>
+              )}
               <div className="w-7 h-7 border-t-2 border-r-2 border-surface shadow-sm"></div>
-            </div>
-            <div className="self-center px-3.5 py-1.5 rounded-full bg-primary/80 backdrop-blur-md text-surface font-body-sm text-body-sm shadow-sm flex items-center gap-2">
-              <span className="material-symbols-outlined text-[16px] text-secondary">
-                center_focus_strong
-              </span>
-              <span>Place Principal Display Panel (PDP) inside frame</span>
             </div>
             <div className="flex items-end justify-between">
               <div className="w-7 h-7 border-b-2 border-l-2 border-surface shadow-sm"></div>

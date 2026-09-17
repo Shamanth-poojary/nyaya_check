@@ -28,6 +28,20 @@ export default function LoginPage() {
       const res = await loginUser(email, password);
       setIsLoading(false);
 
+      if (res.user) {
+        localStorage.setItem('auth_user', JSON.stringify(res.user));
+        try {
+          const { saveOfficerProfile } = await import('@/lib/userProfile');
+          saveOfficerProfile({
+            name: res.user.name,
+            email: res.user.email,
+            role: res.user.role,
+          });
+        } catch {
+          // ignore
+        }
+      }
+
       if (res.user?.role === 'admin') {
         router.push('/admin/dashboard');
       } else {
