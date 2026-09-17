@@ -383,3 +383,52 @@ export const MOCK_AUDIT_LOGS: AuditLogEntry[] = [
     hashSeal: 'sha256:3b99...a107',
   }
 ];
+
+const LOCAL_STORAGE_KEY = 'nyayacheck_inspection_reports';
+let inMemoryReports: InspectionReport[] = [];
+
+/**
+ * Returns all reports, prioritizing newly generated scans stored in localStorage or memory,
+ * prepended to the standard statutory benchmark baseline reports.
+ */
+export function getStoredReports(): InspectionReport[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (stored) {
+        const parsed: InspectionReport[] = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge avoiding duplicates by id
+          const existingIds = new Set(parsed.map((r) => r.id));
+          const standardRemaining = MOCK_REPORTS.filter((r) => !existingIds.has(r.id));
+          return [...parsed, ...standardRemaining];
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read inspection reports from localStorage:', e);
+    }
+  }
+  if (inMemoryReports.length > 0) {
+    const existingIds = new Set(inMemoryReports.map((r) => r.id));
+    const standardRemaining = MOCK_REPORTS.filter((r) => !existingIds.has(r.id));
+    return [...inMemoryReports, ...standardRemaining];
+  }
+  return MOCK_REPORTS;
+}
+
+/**
+ * Persists a newly completed live OCR inspection report into local storage & memory.
+ */
+export function addInspectionReport(report: InspectionReport): void {
+  inMemoryReports = [report, ...inMemoryReports];
+  if (typeof window !== 'undefined') {
+    try {
+      const existing = getStoredReports();
+      const updated = [report, ...existing.filter((r) => r.id !== report.id)];
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to save inspection report to localStorage:', e);
+    }
+  }
+}
+

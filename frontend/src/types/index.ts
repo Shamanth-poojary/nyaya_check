@@ -1,3 +1,5 @@
+import type { ComplianceReport, RuleResult, ComplianceSummary } from '@/lib/ocrApi';
+
 export type ReportStatus = 'compliant' | 'deficit' | 'review';
 
 export interface InspectionReport {
@@ -19,6 +21,13 @@ export interface InspectionReport {
   mfgDate?: string;
   manufacturer?: string;
   consumerCare?: string;
+  packer?: string;
+  importer?: string;
+  category?: string;
+  sourceImages?: string[];
+  rawReport?: ComplianceReport;
+  ruleResults?: RuleResult[];
+  complianceSummary?: ComplianceSummary;
 }
 
 export interface AuditLogEntry {

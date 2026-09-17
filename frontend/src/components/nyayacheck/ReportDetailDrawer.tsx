@@ -86,20 +86,50 @@ export const ReportDetailDrawer: React.FC<ReportDetailDrawerProps> = ({ report, 
             </div>
           </div>
 
-          {report.mrp && (
-            <div className="p-space-md rounded-lg bg-surface border border-outline-variant/30 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div>
-                <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Declared MRP</span>
-                <span className="font-body-md font-semibold text-primary block mt-0.5">{report.mrp}</span>
+          {(report.mrp || report.netQty || report.mfgDate || report.manufacturer || report.consumerCare) && (
+            <div className="p-space-md rounded-lg bg-surface border border-outline-variant/30 flex flex-col gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {report.mrp && (
+                  <div>
+                    <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Declared MRP</span>
+                    <span className="font-body-md font-semibold text-primary block mt-0.5">{report.mrp}</span>
+                  </div>
+                )}
+                {report.netQty && (
+                  <div>
+                    <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Net Quantity</span>
+                    <span className="font-body-md font-semibold text-primary block mt-0.5">{report.netQty}</span>
+                  </div>
+                )}
+                {report.mfgDate && (
+                  <div>
+                    <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Packing / Mfg Date</span>
+                    <span className="font-body-md font-semibold text-primary block mt-0.5">{report.mfgDate}</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Net Quantity</span>
-                <span className="font-body-md font-semibold text-primary block mt-0.5">{report.netQty}</span>
-              </div>
-              <div>
-                <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Packing Date</span>
-                <span className="font-body-md font-semibold text-primary block mt-0.5">{report.mfgDate}</span>
-              </div>
+              {(report.manufacturer || report.packer || report.consumerCare) && (
+                <div className="pt-2 border-t border-outline-variant/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {report.manufacturer && (
+                    <div>
+                      <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Manufacturer</span>
+                      <span className="font-body-sm font-medium text-primary block mt-0.5">{report.manufacturer}</span>
+                    </div>
+                  )}
+                  {report.packer && (
+                    <div>
+                      <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Packer</span>
+                      <span className="font-body-sm font-medium text-primary block mt-0.5">{report.packer}</span>
+                    </div>
+                  )}
+                  {report.consumerCare && (
+                    <div className="sm:col-span-2">
+                      <span className="font-label-meta text-label-meta text-on-surface-variant uppercase">Consumer Care Grievance</span>
+                      <span className="font-body-sm font-medium text-primary block mt-0.5">{report.consumerCare}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -130,6 +160,50 @@ export const ReportDetailDrawer: React.FC<ReportDetailDrawerProps> = ({ report, 
               {report.findings}
             </p>
           </div>
+
+          {/* Detailed Statutory Rule Results Breakdown if generated from live OCR */}
+          {report.ruleResults && report.ruleResults.length > 0 && (
+            <div className="flex flex-col gap-2 p-space-md rounded-lg bg-surface border border-outline-variant/40">
+              <div className="flex items-center justify-between">
+                <span className="font-label-meta text-label-meta uppercase tracking-wider text-on-surface-variant font-semibold">
+                  Statutory Rule Evaluation Audit ({report.ruleResults.length} Checks)
+                </span>
+                {report.complianceSummary && (
+                  <span className="font-label-code text-label-code text-xs text-on-surface-variant">
+                    {report.complianceSummary.passed} Passed • {report.complianceSummary.failed} Failed
+                  </span>
+                )}
+              </div>
+              <div className="divide-y divide-outline-variant/30 flex flex-col max-h-56 overflow-y-auto">
+                {report.ruleResults.map((r, idx) => (
+                  <div key={idx} className="py-2 flex items-start justify-between gap-2 text-xs">
+                    <div className="flex flex-col flex-1">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <span className={r.passed ? 'text-secondary' : r.severity === 'blocking' ? 'text-error' : 'text-amber-700'}>
+                          {r.ruleId}
+                        </span>
+                        <span className="text-on-surface-variant/60 font-mono text-[10px]">
+                          ({r.ruleReference})
+                        </span>
+                      </div>
+                      <p className="text-on-surface-variant mt-0.5">{r.message}</p>
+                    </div>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded font-label-code text-[11px] font-semibold ${
+                        r.passed
+                          ? 'bg-secondary-container text-on-secondary-container'
+                          : r.severity === 'blocking'
+                          ? 'bg-error-container text-on-error-container'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {r.passed ? 'PASS' : r.severity === 'blocking' ? 'VIOLATION' : 'REVIEW'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="p-space-md rounded-lg bg-surface-container-low border border-outline-variant/30 flex items-center justify-between">
             <div>

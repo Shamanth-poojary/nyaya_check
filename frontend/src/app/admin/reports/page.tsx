@@ -1,17 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
-import { MOCK_REPORTS } from '@/data/mockData';
+import React, { useState, useEffect } from 'react';
+import { getStoredReports } from '@/data/mockData';
 import { InspectionReport, ReportStatus } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { ReportDetailDrawer } from '@/components/nyayacheck/ReportDetailDrawer';
 
 export default function AdminReportsPage() {
+  const [reports, setReports] = useState<InspectionReport[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | ReportStatus>('all');
   const [selectedReport, setSelectedReport] = useState<InspectionReport | null>(null);
 
-  const filteredReports = MOCK_REPORTS.filter((report) => {
+  useEffect(() => {
+    setReports(getStoredReports());
+  }, []);
+
+  const filteredReports = reports.filter((report) => {
     const matchesSearch =
       report.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.reportCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -80,10 +85,10 @@ export default function AdminReportsPage() {
         <div className="md:col-span-3 relative">
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value as ReportStatus | 'all')}
             className="w-full bg-surface-container-low pl-3 pr-8 py-2.5 rounded-lg border border-outline-variant/50 font-body-sm text-body-sm text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary shadow-xs cursor-pointer"
           >
-            <option value="all">Filter by Status: All ({MOCK_REPORTS.length})</option>
+            <option value="all">Filter by Status: All ({reports.length})</option>
             <option value="compliant">Compliant / Correct</option>
             <option value="deficit">Non-Compliant / Deficit</option>
             <option value="review">Review Required</option>
@@ -97,7 +102,7 @@ export default function AdminReportsPage() {
             Displaying:
           </span>
           <span className="font-label-code text-label-code px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-semibold">
-            {filteredReports.length} of {MOCK_REPORTS.length} Reports
+            {filteredReports.length} of {reports.length} Reports
           </span>
         </div>
       </div>
@@ -183,7 +188,7 @@ export default function AdminReportsPage() {
         {/* Pagination */}
         <div className="p-space-md bg-surface-container-low border-t border-outline-variant/40 flex flex-col sm:flex-row items-center justify-between gap-space-sm">
           <span className="font-label-meta text-label-meta text-on-surface-variant">
-            Showing {filteredReports.length} of {MOCK_REPORTS.length} entries • Ordered by Inspection Date & Report ID
+            Showing {filteredReports.length} of {reports.length} entries • Ordered by Inspection Date & Report ID
           </span>
           <div className="flex items-center gap-1">
             <button className="px-2.5 py-1 rounded border border-outline-variant/50 bg-surface text-on-surface-variant font-label-code text-label-code hover:bg-surface-container cursor-pointer" disabled>
