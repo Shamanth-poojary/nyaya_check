@@ -56,7 +56,16 @@ def merge_extraction_results(results: List[ExtractionResponse]) -> ExtractionRes
 
     for field_name in STRUCTURED_FIELD_NAMES:
         candidates = [getattr(r, field_name) for r in results]
-        setattr(merged, field_name, _pick_best(candidates))
+        best = _pick_best(candidates)
+        if field_name == "commodity" and getattr(best, "found", False):
+            # Consolidate name and category if discovered on different package panels
+            for c in candidates:
+                if getattr(c, "found", False):
+                    if not getattr(best, "name", None) and getattr(c, "name", None):
+                        best.name = c.name
+                    if not getattr(best, "category", None) and getattr(c, "category", None):
+                        best.category = c.category
+        setattr(merged, field_name, best)
         _flag_conflicts(merged, field_name, candidates)
 
     merged.dimensions = [d for r in results for d in r.dimensions]

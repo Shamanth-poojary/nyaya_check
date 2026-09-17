@@ -119,16 +119,19 @@ SECTION_BOUNDARY_KEYWORDS = [
 
 
 def _classify_commodity(response: ExtractionResponse, lines: List[RawOCRLine]) -> None:
-    """Phase 6: coarse category classification from the FULL label text --
-    not any single line -- since category signal often comes from the
-    manufacturer's name or website domain rather than an explicit
-    'product type' declaration (see commodity.py docstring).
-
-    Ingredient lists are explicitly excluded: a product's ingredients
-    (e.g. "Sugar, Salt, Acidity Regulator") are not its category, but
-    share vocabulary with real category keywords (Salt, Sugar, Honey,
-    Rice...), so naive whole-document matching misclassifies real products.
+    """Phase 6: brand name identification and coarse category classification.
+    
+    Extracts specific brand name/product title using bounding box prominence
+    and brand pattern matching, combined with full-label keyword category matching.
     """
+    # 1. Extract brand name and category hint
+    brand_name, cat_hint, brand_conf = commodity.extract_brand_and_commodity(lines)
+    if brand_name:
+        response.commodity.name = brand_name
+        response.commodity.found = True
+        response.commodity.confidence = brand_conf
+
+    # 2. Text-wide category classification (excluding ingredients)
     ingredients_idx = next(
         (i for i, l in enumerate(lines) if re.search(r"\bingredients\b", l.text, re.IGNORECASE)), None
     )
@@ -150,7 +153,15 @@ def _classify_commodity(response: ExtractionResponse, lines: List[RawOCRLine]) -
         category, confidence = hit
         response.commodity.category = category
         response.commodity.found = True
-        response.commodity.confidence = confidence
+        response.commodity.confidence = max(response.commodity.confidence, confidence)
+    elif cat_hint:
+        response.commodity.category = cat_hint
+        response.commodity.found = True
+        response.commodity.confidence = max(response.commodity.confidence, 0.85)
+
+    # When both brand and category are securely identified, reflect high confidence
+    if response.commodity.name and response.commodity.category:
+        response.commodity.confidence = max(response.commodity.confidence, 0.90)
 
 
 MRP_SEARCH_WINDOW = 3  # lines to check after an 'MRP' keyword line for its

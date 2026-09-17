@@ -142,7 +142,11 @@ def build_product_summary(extraction: ExtractionResponse) -> ProductSummary:
     never fabricate values.
     """
     # Commodity
-    commodity_name = extraction.commodity.name if extraction.commodity.found else None
+    commodity_name = (
+        extraction.commodity.name
+        if extraction.commodity.found and extraction.commodity.name
+        else (extraction.commodity.category if extraction.commodity.found else None)
+    )
     commodity_category = extraction.commodity.category if extraction.commodity.found else None
 
     # Parties
