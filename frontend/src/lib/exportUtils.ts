@@ -1,13 +1,29 @@
 'use client';
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type CellHookData } from 'jspdf-autotable';
 import { InspectionReport } from '@/types';
+import type { RuleResult } from '@/lib/ocrApi';
+
+interface DocWithAutoTable extends jsPDF {
+  lastAutoTable?: {
+    finalY: number;
+  };
+}
+
+type ExtendedRule = RuleResult & {
+  lawReference?: string;
+  detail?: string;
+};
+
+function getLastAutoTableFinalY(doc: jsPDF): number {
+  return (doc as unknown as DocWithAutoTable).lastAutoTable?.finalY ?? 0;
+}
 
 /**
  * Escapes values for safe CSV export.
  */
-function escapeCSV(val: any): string {
+function escapeCSV(val: unknown): string {
   if (val === null || val === undefined) return '""';
   const str = String(val).replace(/"/g, '""');
   return `"${str}"`;
@@ -142,7 +158,7 @@ export function downloadPanchnamaPDF(report: InspectionReport) {
   });
 
   // --- Findings Banner ---
-  let currentY = (doc as any).lastAutoTable.finalY + 6;
+  let currentY = getLastAutoTableFinalY(doc) + 6;
   const isDeficit = report.status === 'deficit';
 
   if (isDeficit) {
@@ -178,12 +194,15 @@ export function downloadPanchnamaPDF(report: InspectionReport) {
   doc.text('STATUTORY RULE EVALUATION AUDIT MATRIX', 14, currentY);
 
   const ruleRows = report.ruleResults && report.ruleResults.length > 0
-    ? report.ruleResults.map((rule) => [
-        rule.ruleId.replace(/_/g, ' ').toUpperCase(),
-        rule.ruleReference || (rule as any).lawReference || 'PCR 2011',
-        rule.passed ? 'PASSED' : rule.severity === 'blocking' ? 'VIOLATION' : 'REVIEW',
-        rule.message || rule.description || (rule as any).detail || (rule.passed ? 'Mandatory declaration verified.' : 'Declaration absent or non-compliant.'),
-      ])
+    ? report.ruleResults.map((rule) => {
+        const extRule = rule as ExtendedRule;
+        return [
+          rule.ruleId.replace(/_/g, ' ').toUpperCase(),
+          rule.ruleReference || extRule.lawReference || 'PCR 2011',
+          rule.passed ? 'PASSED' : rule.severity === 'blocking' ? 'VIOLATION' : 'REVIEW',
+          rule.message || rule.description || extRule.detail || (rule.passed ? 'Mandatory declaration verified.' : 'Declaration absent or non-compliant.'),
+        ];
+      })
     : [
         ['RULE 6(1)(A) COMMODITY IDENTITY', 'Rule 6(1)(a)', 'VIOLATION', 'Generic or common name of packaged commodity absent.'],
         ['RULE 6(1)(B) MANUFACTURER/PACKER', 'Rule 6(1)(b)', 'VIOLATION', 'Name and complete address of manufacturer not found.'],
@@ -207,7 +226,7 @@ export function downloadPanchnamaPDF(report: InspectionReport) {
       2: { cellWidth: 25, fontStyle: 'bold' },
       3: { cellWidth: 'auto' },
     },
-    didParseCell: (data) => {
+    didParseCell: (data: CellHookData) => {
       if (data.column.index === 2 && data.section === 'body') {
         const text = String(data.cell.raw);
         if (text.includes('VIOLATION')) {
@@ -223,7 +242,7 @@ export function downloadPanchnamaPDF(report: InspectionReport) {
   });
 
   // --- Legal Attestation & Cryptographic Seal Footer ---
-  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  const finalY = getLastAutoTableFinalY(doc) + 8;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
   doc.roundedRect(14, finalY, pageWidth - 28, 28, 1.5, 1.5, 'FD');
@@ -333,7 +352,7 @@ export function downloadBulkPanchnamaPDF(reports: InspectionReport[]) {
       7: { cellWidth: 28 },
       8: { cellWidth: 'auto' },
     },
-    didParseCell: (data) => {
+    didParseCell: (data: CellHookData) => {
       if (data.column.index === 6 && data.section === 'body') {
         const text = String(data.cell.raw);
         if (text.includes('DEFICIT')) {
@@ -347,7 +366,7 @@ export function downloadBulkPanchnamaPDF(reports: InspectionReport[]) {
   });
 
   // Footer
-  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  const finalY = getLastAutoTableFinalY(doc) + 8;
   if (finalY < pageHeight - 15) {
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
@@ -374,13 +393,16 @@ export function printStatutoryNotice(report: InspectionReport) {
   const violationsHtml = (report.ruleResults || [])
     .filter((r) => !r.passed)
     .map(
-      (v) => `
+      (v) => {
+        const extRule = v as ExtendedRule;
+        return `
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px; font-weight: 600; color: #b91c1c;">${v.ruleId.replace(/_/g, ' ').toUpperCase()}</td>
-        <td style="padding: 8px; font-family: monospace;">${v.ruleReference || (v as any).lawReference || 'PCR 2011'}</td>
-        <td style="padding: 8px; color: #475569;">${v.message || v.description || (v as any).detail || 'Mandatory declaration violation.'}</td>
+        <td style="padding: 8px; font-family: monospace;">${v.ruleReference || extRule.lawReference || 'PCR 2011'}</td>
+        <td style="padding: 8px; color: #475569;">${v.message || v.description || extRule.detail || 'Mandatory declaration violation.'}</td>
       </tr>
-    `
+    `;
+      }
     )
     .join('');
 
